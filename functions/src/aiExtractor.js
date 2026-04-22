@@ -84,21 +84,6 @@ async function extractRequestData(rawText) {
   }
 }
 
-async function runTests() {
-  const perfectRequest = "Family of 5 needs urgent food and medicine near Lake Road, child is sick";
-  const regionalRequest = "Akkada chala varsham ga undi, drinking water kavali urgently at Ram Nagar";
-  const garbageRequest = "hello bro";
-
-  console.log("--- TEST 1: PERFECT ENGLISH ---");
-  console.log(await extractRequestData(perfectRequest));
-
-  console.log("\n--- TEST 2: MULTILINGUAL ---");
-  console.log(await extractRequestData(regionalRequest));
-
-  console.log("\n--- TEST 3: GARBAGE INPUT (FALLBACK) ---");
-  console.log(await extractRequestData(garbageRequest));
-}
-
 
 module.exports = { extractRequestData };
 
