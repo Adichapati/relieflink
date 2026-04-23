@@ -1,109 +1,46 @@
-import { useMemo, useState } from 'react';
-import RequestForm from './components/RequestForm';
-import CoordinatorBoard from './components/CoordinatorBoard';
-import MetricCard from './components/MetricCard';
-import { seedRequests, seedVolunteers } from './lib/demoData';
-import { extractRequestFields } from './lib/extractionMock';
-import { matchAllRequests } from './lib/matching';
-
-function createRequestFromText(rawText) {
-  const extracted = extractRequestFields(rawText);
-  return {
-    id: crypto.randomUUID(),
-    rawText,
-    ...extracted,
-    status: 'pending',
-    assignedVolunteerId: null,
-    assignedVolunteerName: null,
-    assignmentRationale: null,
-    createdAt: Date.now(),
-    assignedAt: null,
-    completedAt: null,
-  };
-}
+import { useScrollProgress } from './hooks/useScrollProgress';
+import { useGlobeState } from './hooks/useGlobeState';
+import GlobeScene from './components/globe/GlobeScene';
+import Navbar from './components/layout/Navbar';
+import ScrollProgress from './components/ui/ScrollProgress';
+import HeroSection from './components/sections/HeroSection';
+import IntakeSection from './components/sections/IntakeSection';
+import OperationsSection from './components/sections/OperationsSection';
 
 export default function App() {
-  const [volunteers, setVolunteers] = useState(seedVolunteers);
-  const [requests, setRequests] = useState(seedRequests.map(createRequestFromText));
-
-  const metrics = useMemo(() => {
-    const assigned = requests.filter((req) => req.status === 'assigned' || req.status === 'completed');
-    const completed = requests.filter((req) => req.status === 'completed');
-    const assignmentDurations = assigned
-      .filter((req) => req.assignedAt)
-      .map((req) => req.assignedAt - req.createdAt);
-    const averageAssignmentSeconds = assignmentDurations.length
-      ? Math.round(assignmentDurations.reduce((sum, value) => sum + value, 0) / assignmentDurations.length / 1000)
-      : 0;
-
-    return {
-      total: requests.length,
-      assigned: assigned.length,
-      completed: completed.length,
-      avgAssignmentSeconds: averageAssignmentSeconds,
-    };
-  }, [requests]);
-
-  const handleSubmitRequest = (rawText) => {
-    const nextRequest = createRequestFromText(rawText);
-    setRequests((current) => [nextRequest, ...current]);
-  };
-
-  const handleMatchPending = () => {
-    const result = matchAllRequests(requests, volunteers);
-    setRequests(result.requests);
-    setVolunteers(result.volunteers);
-  };
-
-  const handleMarkComplete = (requestId) => {
-    setRequests((current) =>
-      current.map((request) =>
-        request.id === requestId
-          ? { ...request, status: 'completed', completedAt: Date.now() }
-          : request
-      )
-    );
-  };
-
-  const handleManualPromote = (requestId) => {
-    setRequests((current) =>
-      current.map((request) =>
-        request.id === requestId ? { ...request, confidence: 'reviewed' } : request
-      )
-    );
-  };
+  const scrollProgress = useScrollProgress();
+  const globeState = useGlobeState(scrollProgress);
+  const isScrolled = scrollProgress > 0.02;
 
   return (
-    <div className="page-shell">
-      <header className="hero">
-        <div>
-          <p className="eyebrow">Hackathon MVP</p>
-          <h1>ReliefLink</h1>
-          <p className="hero-copy">
-            Turn messy disaster-help messages into structured requests and match the best volunteer in seconds.
-          </p>
-        </div>
-        <button className="primary-button" onClick={handleMatchPending}>
-          Match pending requests
-        </button>
-      </header>
+    <>
+      {/* CSS star background — always visible */}
+      <div className="star-field" />
 
-      <section className="metrics-grid">
-        <MetricCard label="Total requests" value={metrics.total} />
-        <MetricCard label="Assigned" value={metrics.assigned} />
-        <MetricCard label="Completed" value={metrics.completed} />
-        <MetricCard label="Avg assignment time" value={`${metrics.avgAssignmentSeconds}s`} />
-      </section>
+      <Navbar scrolled={isScrolled} />
+      <ScrollProgress progress={scrollProgress} />
 
-      <section className="workspace-grid">
-        <RequestForm onSubmit={handleSubmitRequest} />
-        <CoordinatorBoard
-          requests={requests}
-          volunteers={volunteers}
-          onMarkComplete={handleMarkComplete}
-          onManualPromote={handleManualPromote}
-        />
-      </section>
-    </div>
+      {/* Globe: fixed behind all content */}
+      <div
+        className="globe-layer"
+        style={{ opacity: globeState.opacity }}
+      >
+        <GlobeScene globeState={globeState} />
+      </div>
+
+      {/* Scrollable content over the globe */}
+      <main className="content-layer">
+        <HeroSection />
+
+        {/* Spacer — globe approach zone */}
+        <section className="section" style={{ height: '100vh' }} />
+
+        {/* Signal Intake — AI Decoding showcase */}
+        <IntakeSection />
+
+        {/* Operations — Tactical Map + Kanban Board */}
+        <OperationsSection />
+      </main>
+    </>
   );
 }
