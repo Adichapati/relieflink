@@ -7,5 +7,9 @@
     "build": "npm --prefix web run build",
     "preview": "npm --prefix web run preview",
     "dev:functions": "npm --prefix functions run dev"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "firebase-admin": "^13.8.0"
   }
 }

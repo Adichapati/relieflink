@@ -1,46 +1,64 @@
-import { useScrollProgress } from './hooks/useScrollProgress';
-import { useGlobeState } from './hooks/useGlobeState';
-import GlobeScene from './components/globe/GlobeScene';
-import Navbar from './components/layout/Navbar';
-import ScrollProgress from './components/ui/ScrollProgress';
-import HeroSection from './components/sections/HeroSection';
-import IntakeSection from './components/sections/IntakeSection';
-import OperationsSection from './components/sections/OperationsSection';
+import { createContext, useEffect, useState } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "./firebaseClient";
+import LandingPage from "./pages/LandingPage";
+import AuthPage from "./pages/AuthPage";
+import SkillSetupPage from "./pages/SkillSetupPage";
+import DashboardPage from "./pages/DashboardPage";
+
+export const AuthContext = createContext(null);
 
 export default function App() {
-  const scrollProgress = useScrollProgress();
-  const globeState = useGlobeState(scrollProgress);
-  const isScrolled = scrollProgress > 0.02;
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setLoading(true);
+      setUser(currentUser);
+
+      if (currentUser) {
+        try {
+          const response = await fetch(
+            `http://localhost:8787/user/${currentUser.uid}`,
+          );
+          if (response.ok) {
+            const profileData = await response.json();
+            setProfile(profileData);
+          } else {
+            setProfile(null);
+          }
+        } catch (err) {
+          setProfile(null);
+        }
+      } else {
+        setProfile(null);
+      }
+
+      setLoading(false);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  if (loading) {
+    return <div className="page-shell">Loading...</div>;
+  }
 
   return (
-    <>
-      {/* CSS star background — always visible */}
-      <div className="star-field" />
-
-      <Navbar scrolled={isScrolled} />
-      <ScrollProgress progress={scrollProgress} />
-
-      {/* Globe: fixed behind all content */}
-      <div
-        className="globe-layer"
-        style={{ opacity: globeState.opacity }}
-      >
-        <GlobeScene globeState={globeState} />
-      </div>
-
-      {/* Scrollable content over the globe */}
-      <main className="content-layer">
-        <HeroSection />
-
-        {/* Spacer — globe approach zone */}
-        <section className="section" style={{ height: '100vh' }} />
-
-        {/* Signal Intake — AI Decoding showcase */}
-        <IntakeSection />
-
-        {/* Operations — Tactical Map + Kanban Board */}
-        <OperationsSection />
-      </main>
-    </>
+    <AuthContext.Provider value={{ user, profile, setProfile }}>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/landing" element={<Navigate replace to="/" />} />
+          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/setup" element={<SkillSetupPage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="*" element={<Navigate replace to="/" />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthContext.Provider>
   );
 }
