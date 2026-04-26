@@ -161,8 +161,9 @@ export function normalizeTask(task) {
 }
 
 const STATUS_TO_COLUMN = {
+  needs_approval: 'review',
+  needs_review: 'review',
   pending: 'incoming',
-  needs_review: 'incoming',
   assigned: 'matched',
   dispatched: 'dispatched',
   completed: 'resolved',

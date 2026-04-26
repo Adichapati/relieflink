@@ -1,4 +1,10 @@
-import { db } from "./firebase.js";
+import { db, auth } from "./firebase.js";
+
+const ADMIN = {
+  email: "admin@relieflink.demo",
+  password: "ReliefLink!2026",
+  name: "Demo Coordinator",
+};
 
 const VOLUNTEERS = [
   {
@@ -177,6 +183,33 @@ async function clearCollection(name) {
   return snap.size;
 }
 
+async function ensureAdmin() {
+  let user;
+  try {
+    user = await auth.getUserByEmail(ADMIN.email);
+  } catch {
+    user = await auth.createUser({
+      email: ADMIN.email,
+      password: ADMIN.password,
+      displayName: ADMIN.name,
+    });
+  }
+  await db.collection("users").doc(user.uid).set(
+    {
+      firebaseUid: user.uid,
+      email: ADMIN.email,
+      name: ADMIN.name,
+      role: "ADMIN",
+      skills: [],
+      status: "active",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    { merge: true },
+  );
+  return user;
+}
+
 async function seed() {
   const reset = process.argv.includes("--reset");
 
@@ -186,6 +219,10 @@ async function seed() {
     console.log(`  ✓ removed ${removed} old requests`);
   }
 
+  console.log("Ensuring demo admin account...");
+  await ensureAdmin();
+  console.log(`  ✓ admin: ${ADMIN.email} / ${ADMIN.password}`);
+
   console.log("Seeding volunteers into users collection...");
   const volBatch = db.batch();
   for (const v of VOLUNTEERS) {
@@ -193,12 +230,13 @@ async function seed() {
     volBatch.set(ref, {
       ...v,
       firebaseUid: v.id,
+      is_seed: true, // hidden from real matching/picker; demo mode opts in
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
   }
   await volBatch.commit();
-  console.log(`  ✓ ${VOLUNTEERS.length} volunteers seeded`);
+  console.log(`  ✓ ${VOLUNTEERS.length} volunteers seeded (tagged is_seed)`);
 
   console.log("Seeding sample requests...");
   const reqBatch = db.batch();

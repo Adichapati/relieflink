@@ -9,12 +9,14 @@ function defaultStats(tasks) {
   const active = tasks.filter((t) => statusToColumn(t.status) !== 'resolved').length;
   const matched = tasks.filter((t) => statusToColumn(t.status) === 'matched').length;
   const matchRate = total > 0 ? Math.round((matched / total) * 100) : 0;
-  const review = tasks.filter((t) => t.status === 'needs_review').length;
+  const review = tasks.filter(
+    (t) => t.status === 'needs_review' || t.status === 'needs_approval',
+  ).length;
   return [
     { label: 'Active Requests', value: active, suffix: '', accent: true },
     { label: 'Matched', value: matched, suffix: '' },
     { label: 'Match Rate', value: matchRate, suffix: '%', accent: true },
-    { label: 'Needs Review', value: review, suffix: '' },
+    { label: 'Awaiting Review', value: review, suffix: '' },
   ];
 }
 
@@ -29,15 +31,20 @@ export default function OperationsSection({
   onAutoMatch = null,
   autoMatching = false,
   showAdminActions = false,
+  showReviewColumn = false,
   onComplete = null,
   onReassign = null,
+  onApprove = null,
+  onAssign = null,
+  onDelete = null,
+  volunteers = [],
   onDemoMode = null,
   demoStep = 0,
   demoTotal = 5,
 }) {
   const [view, setView] = useState(defaultView);
   const computedStats = useMemo(() => stats || defaultStats(tasks), [stats, tasks]);
-  const pendingCount = tasks.filter((t) => t.status === 'pending' || t.status === 'needs_review').length;
+  const pendingCount = tasks.filter((t) => t.status === 'pending').length;
 
   return (
     <section className="section operations-section" id="operations">
@@ -117,8 +124,13 @@ export default function OperationsSection({
             tasks={tasks}
             highlightVolunteerId={highlightVolunteerId}
             showAdminActions={showAdminActions}
+            showReviewColumn={showReviewColumn}
             onComplete={onComplete}
             onReassign={onReassign}
+            onApprove={onApprove}
+            onAssign={onAssign}
+            onDelete={onDelete}
+            volunteers={volunteers}
           />
         )}
       </div>

@@ -9,6 +9,21 @@ one live picture of who needs what and who is on the way.
 
 ## What it does
 
+- **Two roles, realistic boundaries.** Self-signup is volunteer-only.
+  Coordinator (admin) accounts are issued out of band — seeded by the
+  setup script or created in the Firebase console. The backend rejects
+  any client attempt to self-promote.
+- **Volunteer location capture.** At signup, volunteers can grant the
+  browser geolocation prompt with one tap or type a city; coordinates
+  are persisted on the user doc and feed directly into the matcher's
+  distance scoring.
+- **Volunteer-first reporting.** Volunteers can also decode and submit
+  distress signals from the field. Submitted signals enter an
+  admin-only review queue first.
+- **Coordinator approval gate.** Every decoded signal lands in
+  `needs_approval` (or `needs_review` if low-confidence) and only becomes
+  visible to volunteers and matchable after a coordinator approves it.
+  Prevents spam and keeps a human in the loop.
 - **Free-text intake.** Paste a raw distress message; Gemini 2.5 Flash-Lite
   extracts category, urgency, location, and quantity into a typed schema.
 - **Voice intake.** Record up to 30 s of audio in the browser; the same
@@ -22,6 +37,10 @@ one live picture of who needs what and who is on the way.
   volunteers on skill match, distance (haversine, computed server-side),
   and availability. The rationale is stored on the request and shown in
   the UI ("Priya, medical, 1.4 km away").
+- **Manual assignment.** Coordinator can override the AI and pick a
+  specific volunteer from a live, skill-aware picker on each card.
+- **Delete signals.** Coordinator can remove erroneous or duplicate
+  reports; if the request was assigned, the volunteer is freed automatically.
 - **Live coordination.** Both dashboards use Firestore `onSnapshot` for
   real-time updates and fall back to REST polling if security rules block
   client reads.
@@ -30,12 +49,13 @@ one live picture of who needs what and who is on the way.
   request (dashed when assigned, flowing solid when dispatched).
 - **3D globe.** Drag-rotatable Three.js globe with continent-level lift on
   hover; pin counts come from live tasks.
-- **Coordinator actions.** Auto-Match all pending, Complete, Reassign,
-  edit extraction.
+- **Coordinator actions.** Approve, Auto-Match all pending, Manual Assign,
+  Delete, Complete, Reassign, edit extraction.
 - **Volunteer actions.** Accept, Decline, Mark Complete; volunteer is
   automatically returned to `available` on completion or decline.
-- **Demo mode.** Single button streams 5 staged distress messages through
-  the pipeline and auto-matches them — removes typing risk during the pitch.
+- **Demo mode.** Single button streams 5 staged distress messages into
+  review, pauses to show the human-in-the-loop approval, bulk-approves,
+  then auto-matches — removes typing risk during the pitch.
 - **Toasts.** Live transitions (new signal, matched, dispatched, resolved)
   surface as bottom-right notifications.
 - **Impact section.** Stats are computed from real tasks: cases resolved,
@@ -119,15 +139,20 @@ relieflink/
 | GET    | `/health`             | Liveness                                         |
 | POST   | `/extract-request`    | Text → structured request → Firestore            |
 | POST   | `/extract-voice`      | Audio (base64 WAV) → structured request          |
+| POST   | `/approve-request`    | Coordinator gates a signal into `pending`        |
+| POST   | `/approve-all`        | Bulk-approve everything in review (demo mode)    |
 | POST   | `/match-request`      | Run AI matcher, assign best volunteer            |
+| POST   | `/assign-request`     | Manually assign a specific volunteer             |
 | POST   | `/update-request`     | Edit extracted fields (human-in-the-loop)        |
 | POST   | `/complete-request`   | Coordinator marks complete, frees volunteer      |
 | POST   | `/reassign-request`   | Coordinator unassigns, returns to pending        |
+| POST   | `/delete-request`     | Coordinator removes a signal, frees volunteer    |
 | POST   | `/accept-mission`     | Volunteer accepts assignment → dispatched        |
 | POST   | `/decline-mission`    | Volunteer declines, request returns to pending   |
 | POST   | `/complete-mission`   | Volunteer marks complete                         |
-| POST   | `/add-user`           | Create or update user profile                    |
+| POST   | `/add-user`           | Create or update user profile (volunteer only)   |
 | GET    | `/user/:firebaseUid`  | Fetch profile                                    |
+| GET    | `/volunteers`         | List volunteers (`?available=true` filters)      |
 | GET    | `/tasks`              | All requests (used as snapshot fallback)         |
 
 ## Setup
@@ -198,11 +223,16 @@ npm run dev
 
 ### Seed demo data
 
-Populates 6 volunteers (with skills + lat/lng across India) and 8 sample
-requests:
+Creates a demo coordinator account, 6 volunteers (skills + lat/lng across
+India), and 8 sample requests in `needs_approval`:
 
 ```bash
 npm --prefix functions run seed
+```
+
+Default credentials printed by the script:
+```
+admin@relieflink.demo / ReliefLink!2026
 ```
 
 Wipe existing requests and reseed:
@@ -213,17 +243,25 @@ npm --prefix functions run reset
 
 ## Demo flow (3 minutes)
 
-1. **Open the admin dashboard.** Globe rotating, kanban empty.
-2. **Click Demo Mode.** Five distress signals stream in over ~12 seconds;
-   toasts cascade in the corner. The auto-match fires at the end and the
-   rationale toggle on each card explains *why* this volunteer.
-3. **Switch to map view.** Volunteer pins (green) and request pins
+1. **Log in as admin** with the seeded coordinator account. Globe rotating,
+   kanban empty.
+2. **Click Demo Mode.** Five distress signals stream into the AWAITING
+   REVIEW column over ~12 s; toasts cascade. After a brief pause the
+   coordinator approval fires and the cards roll into PENDING, then
+   auto-match assigns each one with a Gemini rationale.
+3. **Click "Why this match?"** on any card to expose the rationale —
+   "Priya, medical, 1.4 km away."
+4. **Switch to map view.** Volunteer pins (green) and request pins
    (red/amber) connected by routing lines, distance label at midpoint.
-4. **Scroll to intake → switch to Voice.** Record a fresh distress message;
-   watch the visualizer pulse. Hit Decode. Field-reveal animation plays.
-5. **Click Load ES, Decode.** Same pipeline understands Spanish, returns
+5. **Scroll to intake → switch to Voice.** Record a fresh distress message;
+   watch the visualizer pulse. Hit Decode. The new card lands in
+   AWAITING REVIEW. Click **Approve**, then **Assign…** to manually
+   pick a volunteer.
+6. **Click Load ES, Decode.** Same pipeline understands Spanish, returns
    English-structured fields.
-6. **Scroll to Impact.** Counters animate up from real numbers.
+7. **Open another browser, sign up as a volunteer.** Watch the assigned
+   missions appear with Accept / Decline.
+8. **Scroll to Impact.** Counters animate up from real numbers.
 
 ## Tech stack
 

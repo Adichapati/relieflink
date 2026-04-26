@@ -2556,3 +2556,301 @@ body {
   border-color: rgba(136, 170, 255, 0.5);
   color: #aac6ff;
 }
+
+/* ── Locked role card on signup setup ── */
+.role-locked-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  margin: var(--space-md) 0;
+  background: rgba(0, 255, 136, 0.06);
+  border: 1px solid rgba(0, 255, 136, 0.25);
+  border-radius: 8px;
+}
+.role-locked-icon {
+  font-size: 1.6rem;
+  filter: drop-shadow(0 0 8px rgba(0, 255, 136, 0.4));
+}
+.role-locked-body { flex: 1; display: flex; flex-direction: column; }
+.role-locked-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.role-locked-sub {
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  color: var(--accent, #00ff88);
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+.role-locked-badge {
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  background: rgba(0, 255, 136, 0.15);
+  color: var(--accent, #00ff88);
+  border-radius: 3px;
+}
+
+.intake-submit-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--space-md);
+  padding: 4px 10px;
+  font-size: 0.7rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  background: rgba(170, 102, 255, 0.1);
+  color: #c099ff;
+  border: 1px solid rgba(170, 102, 255, 0.35);
+  border-radius: 3px;
+}
+
+/* ── Review column + admin card actions ── */
+.kanban-board.with-review {
+  /* 5 columns when review is shown */
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.kanban-col-review .kanban-col-label { color: #c099ff; }
+
+.request-card.awaiting-review {
+  border-left-color: #aa66ff;
+  background: linear-gradient(135deg, rgba(170, 102, 255, 0.06), rgba(170, 102, 255, 0.02));
+}
+.card-review-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  background: rgba(170, 102, 255, 0.18);
+  color: #c099ff;
+  border: 1px solid rgba(170, 102, 255, 0.4);
+  border-radius: 3px;
+  margin-left: 6px;
+}
+
+.card-action.approve:hover:not(:disabled) {
+  border-color: #00cc66;
+  color: #00ff88;
+}
+.card-action.assign:hover:not(:disabled) {
+  border-color: #88aaff;
+  color: #aac6ff;
+}
+.card-action.delete {
+  flex: 0 0 auto;
+  min-width: 60px;
+}
+.card-action.delete:hover:not(:disabled) {
+  border-color: #ff5050;
+  color: #ff5050;
+}
+
+/* ── Manual assign volunteer picker ── */
+.card-assign-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.card-assign-picker {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background: rgba(10, 10, 12, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6);
+  max-height: 220px;
+  overflow-y: auto;
+  backdrop-filter: blur(8px);
+  animation: picker-in 0.15s ease;
+}
+@keyframes picker-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.picker-header {
+  padding: 6px 10px;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  position: sticky;
+  top: 0;
+  background: rgba(10, 10, 12, 0.98);
+}
+.picker-empty {
+  padding: 12px;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+.picker-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.picker-item:last-child { border-bottom: none; }
+.picker-item:hover {
+  background: rgba(0, 255, 136, 0.08);
+}
+.picker-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.picker-skills {
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+}
+
+/* ── Volunteer location capture on setup page ── */
+.auth-label-hint {
+  font-weight: 400;
+  color: var(--text-tertiary);
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-size: 0.7em;
+  margin-left: 4px;
+}
+
+.loc-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.loc-gps-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(0, 255, 136, 0.08);
+  color: var(--accent, #00ff88);
+  border: 1px solid rgba(0, 255, 136, 0.35);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.loc-gps-btn:hover:not(:disabled) {
+  background: rgba(0, 255, 136, 0.14);
+  border-color: var(--accent, #00ff88);
+  box-shadow: 0 0 16px rgba(0, 255, 136, 0.3);
+}
+.loc-gps-btn:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+.loc-gps-icon {
+  font-size: 1.05em;
+  display: inline-block;
+}
+.loc-gps-btn:disabled .loc-gps-icon {
+  animation: gps-spin 1s linear infinite;
+}
+@keyframes gps-spin {
+  to { transform: rotate(360deg); }
+}
+
+.loc-or {
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  color: var(--text-tertiary);
+}
+
+.loc-city-input {
+  flex: 1;
+  min-width: 180px;
+}
+
+.loc-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: var(--space-sm);
+  padding: 6px 10px;
+  background: rgba(0, 255, 136, 0.08);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+  border-radius: 4px;
+  flex-wrap: wrap;
+}
+.loc-preview-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent, #00ff88);
+  box-shadow: 0 0 8px var(--accent, #00ff88);
+}
+.loc-preview-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--accent, #00ff88);
+  padding: 1px 5px;
+  background: rgba(0, 255, 136, 0.15);
+  border-radius: 2px;
+}
+.loc-preview-text {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+}
+.loc-preview-coords {
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
+  letter-spacing: 0.02em;
+}
+.loc-clear {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.loc-clear:hover { color: var(--text-primary); }
+
+.loc-error {
+  display: inline-block;
+  margin-top: var(--space-sm);
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  color: #ffaa00;
+  background: rgba(255, 170, 0, 0.08);
+  border-left: 2px solid #ffaa00;
+  border-radius: 0 3px 3px 0;
+}
+
+.loc-hint {
+  display: inline-block;
+  margin-top: var(--space-xs);
+  font-size: 0.68rem;
+  color: var(--text-tertiary);
+  letter-spacing: 0.02em;
+  text-transform: none;
+}

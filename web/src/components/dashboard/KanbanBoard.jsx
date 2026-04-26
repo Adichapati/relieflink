@@ -1,8 +1,9 @@
 import RequestCard from './RequestCard';
 import { taskToCard } from '../../lib/taskAdapter';
 
-const COLUMNS = [
-  { key: 'incoming', label: 'INCOMING', color: '#ff3333' },
+const REVIEW_COLUMN = { key: 'review', label: 'AWAITING REVIEW', color: '#aa66ff' };
+const BASE_COLUMNS = [
+  { key: 'incoming', label: 'PENDING', color: '#ff3333' },
   { key: 'matched', label: 'MATCHED', color: '#ffaa00' },
   { key: 'dispatched', label: 'DISPATCHED', color: '#00cc66' },
   { key: 'resolved', label: 'RESOLVED', color: '#888888' },
@@ -12,17 +13,25 @@ export default function KanbanBoard({
   tasks = [],
   highlightVolunteerId = null,
   showAdminActions = false,
+  showReviewColumn = false,
   onComplete = null,
   onReassign = null,
+  onApprove = null,
+  onAssign = null,
+  onDelete = null,
+  volunteers = [],
 }) {
   const cards = tasks.map(taskToCard);
+  const columns = showReviewColumn
+    ? [REVIEW_COLUMN, ...BASE_COLUMNS]
+    : BASE_COLUMNS;
 
   return (
-    <div className="kanban-board">
-      {COLUMNS.map((col) => {
+    <div className={`kanban-board ${showReviewColumn ? 'with-review' : ''}`}>
+      {columns.map((col) => {
         const columnCards = cards.filter((c) => c.status === col.key);
         return (
-          <div key={col.key} className="kanban-column">
+          <div key={col.key} className={`kanban-column kanban-col-${col.key}`}>
             <div className="kanban-col-header">
               <span className="kanban-col-dot" style={{ background: col.color }} />
               <span className="kanban-col-label mono">{col.label}</span>
@@ -40,6 +49,10 @@ export default function KanbanBoard({
                   showAdminActions={showAdminActions}
                   onComplete={onComplete}
                   onReassign={onReassign}
+                  onApprove={onApprove}
+                  onAssign={onAssign}
+                  onDelete={onDelete}
+                  volunteers={volunteers}
                 />
               ))}
               {columnCards.length === 0 && (

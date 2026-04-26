@@ -28,7 +28,14 @@ function applyDecoded(data) {
   };
 }
 
-export default function IntakeSection({ onSubmitted }) {
+export default function IntakeSection({
+  onSubmitted,
+  eyebrow = '02 // Signal Intake',
+  title = 'Decode Distress',
+  titleAccent = 'Signals',
+  subtitle = 'Paste raw text or capture a voice report. Gemini extracts structured data and saves to the live request queue.',
+  submitNote = null,
+}) {
   const [mode, setMode] = useState('text');
   const [rawText, setRawText] = useState('');
   const [isDecoding, setIsDecoding] = useState(false);
@@ -141,13 +148,14 @@ export default function IntakeSection({ onSubmitted }) {
   return (
     <section className="section intake-section" id="intake">
       <div className="intake-header">
-        <span className="section-eyebrow mono">02 // Signal Intake</span>
+        <span className="section-eyebrow mono">{eyebrow}</span>
         <h2 className="section-title">
-          Decode Distress <span className="accent">Signals</span>
+          {title} <span className="accent">{titleAccent}</span>
         </h2>
-        <p className="section-subtitle">
-          Paste raw text or capture a voice report. Gemini extracts structured data and saves to the live request queue.
-        </p>
+        <p className="section-subtitle">{subtitle}</p>
+        {submitNote && (
+          <span className="intake-submit-note mono">⏳ {submitNote}</span>
+        )}
 
         <div className="intake-mode-tabs">
           <button

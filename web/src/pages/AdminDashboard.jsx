@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useScrollProgress } from '../hooks/useScrollProgress';
 import { useGlobeState } from '../hooks/useGlobeState';
 import { useLiveTasks } from '../hooks/useLiveTasks';
+import { useVolunteers } from '../hooks/useVolunteers';
 import { tasksToGlobePins } from '../lib/taskAdapter';
 import GlobeScene from '../components/globe/GlobeScene';
 import Navbar from '../components/layout/Navbar';
@@ -28,27 +29,31 @@ export default function AdminDashboard({ profile }) {
   const isScrolled = scrollProgress > 0.02;
 
   const { tasks, loading } = useLiveTasks();
+  const { volunteers } = useVolunteers();
   const [autoMatching, setAutoMatching] = useState(false);
   const [demoStep, setDemoStep] = useState(0); // 0 = idle, 1..N = running
 
-  const handleAutoMatch = useCallback(async () => {
-    const pending = tasks.filter((t) => t.status === 'pending' || t.status === 'needs_review');
-    if (pending.length === 0) return;
-    setAutoMatching(true);
-    try {
-      await Promise.all(
-        pending.map((t) =>
-          fetch(`${API_BASE}/match-request`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ requestId: t.id }),
-          }),
-        ),
-      );
-    } finally {
-      setAutoMatching(false);
-    }
-  }, [tasks]);
+  const handleAutoMatch = useCallback(
+    async ({ includeSeed = false } = {}) => {
+      const pending = tasks.filter((t) => t.status === 'pending');
+      if (pending.length === 0) return;
+      setAutoMatching(true);
+      try {
+        await Promise.all(
+          pending.map((t) =>
+            fetch(`${API_BASE}/match-request`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ requestId: t.id, includeSeed }),
+            }),
+          ),
+        );
+      } finally {
+        setAutoMatching(false);
+      }
+    },
+    [tasks],
+  );
 
   const handleComplete = useCallback(async (requestId) => {
     await fetch(`${API_BASE}/complete-request`, {
@@ -66,12 +71,36 @@ export default function AdminDashboard({ profile }) {
     });
   }, []);
 
+  const handleApprove = useCallback(async (requestId) => {
+    await fetch(`${API_BASE}/approve-request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId }),
+    });
+  }, []);
+
+  const handleAssign = useCallback(async (requestId, volunteerId) => {
+    await fetch(`${API_BASE}/assign-request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId, volunteerId }),
+    });
+  }, []);
+
+  const handleDelete = useCallback(async (requestId) => {
+    await fetch(`${API_BASE}/delete-request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId }),
+    });
+  }, []);
+
   const runDemoMode = useCallback(async () => {
     if (demoStep > 0) return; // already running
     pushToast({
       kind: 'info',
       title: 'Demo mode engaged',
-      body: `Streaming ${DEMO_REQUESTS.length} signals…`,
+      body: `Streaming ${DEMO_REQUESTS.length} signals into review…`,
       ttl: 3000,
     });
     for (let i = 0; i < DEMO_REQUESTS.length; i++) {
@@ -85,16 +114,30 @@ export default function AdminDashboard({ profile }) {
       } catch {
         /* ignore — toast on next live snapshot */
       }
-      await new Promise((r) => setTimeout(r, 2500));
+      await new Promise((r) => setTimeout(r, 2200));
     }
+
+    // Pause so judges can see the AWAITING REVIEW column fill up
     pushToast({
       kind: 'info',
-      title: 'Auto-matching demo signals…',
+      title: 'Coordinator approving…',
+      body: 'Human-in-the-loop review',
       ttl: 2500,
     });
-    // Wait briefly so the last request lands in Firestore before matching.
+    await new Promise((r) => setTimeout(r, 1800));
+    try {
+      await fetch(`${API_BASE}/approve-all`, { method: 'POST' });
+    } catch {
+      /* ignore */
+    }
+
+    pushToast({
+      kind: 'info',
+      title: 'Auto-matching approved signals…',
+      ttl: 2500,
+    });
     await new Promise((r) => setTimeout(r, 800));
-    await handleAutoMatch();
+    await handleAutoMatch({ includeSeed: true });
     setDemoStep(0);
   }, [demoStep, handleAutoMatch]);
 
@@ -140,8 +183,13 @@ export default function AdminDashboard({ profile }) {
           onAutoMatch={handleAutoMatch}
           autoMatching={autoMatching}
           showAdminActions
+          showReviewColumn
           onComplete={handleComplete}
           onReassign={handleReassign}
+          onApprove={handleApprove}
+          onAssign={handleAssign}
+          onDelete={handleDelete}
+          volunteers={volunteers}
           onDemoMode={runDemoMode}
           demoStep={demoStep}
           demoTotal={DEMO_REQUESTS.length}

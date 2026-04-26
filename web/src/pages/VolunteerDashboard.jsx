@@ -6,11 +6,19 @@ import GlobeScene from '../components/globe/GlobeScene';
 import Navbar from '../components/layout/Navbar';
 import ScrollProgress from '../components/ui/ScrollProgress';
 import HeroSection from '../components/sections/HeroSection';
+import IntakeSection from '../components/sections/IntakeSection';
 import OperationsSection from '../components/sections/OperationsSection';
 import RequestCard from '../components/dashboard/RequestCard';
 import { taskToCard, tasksToGlobePins } from '../lib/taskAdapter';
 
 const API_BASE = 'http://localhost:8787';
+
+const VOLUNTEER_VISIBLE_STATUSES = new Set([
+  'pending',
+  'assigned',
+  'dispatched',
+  'completed',
+]);
 
 function MyMissionsSection({ missions, profile, onAccept, onDecline, onComplete }) {
   const skills = Array.isArray(profile?.skills) ? profile.skills : [];
@@ -65,7 +73,13 @@ export default function VolunteerDashboard({ profile }) {
   const globeState = useGlobeState(scrollProgress);
   const isScrolled = scrollProgress > 0.02;
 
-  const { tasks, loading } = useLiveTasks();
+  const { tasks: rawTasks, loading } = useLiveTasks();
+
+  // Volunteers only see approved/active tasks — pre-approval queue is admin-only
+  const tasks = useMemo(
+    () => rawTasks.filter((t) => VOLUNTEER_VISIBLE_STATUSES.has(t.status)),
+    [rawTasks],
+  );
 
   const myUid = profile?.firebaseUid || profile?.id;
   const myTasks = useMemo(
@@ -138,6 +152,14 @@ export default function VolunteerDashboard({ profile }) {
           onAccept={handleAccept}
           onDecline={handleDecline}
           onComplete={handleComplete}
+        />
+
+        <IntakeSection
+          eyebrow="04 // Field Report"
+          title="Report a"
+          titleAccent="Distress Signal"
+          subtitle="Spotted something? File a report. It will land in the coordinator queue for review before being matched to the right responder."
+          submitNote="Pending coordinator review"
         />
 
         <OperationsSection

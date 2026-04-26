@@ -44,14 +44,17 @@ app.post("/extract-request", async (req, res) => {
     // Create the full document payload
     const requestDoc = {
       raw_text: text,
+      source: "text",
       ...extractedData,
       lat,
       lng,
-      status: extractedData.confidence < 0.6 ? "needs_review" : "pending",
+      status:
+        extractedData.confidence < 0.6 ? "needs_review" : "needs_approval",
       assigned_volunteer_id: null,
       assigned_volunteer_name: null,
       assignment_rationale: null,
       created_at: new Date().toISOString(),
+      approved_at: null,
       assigned_at: null,
       completed_at: null,
     };
@@ -91,11 +94,13 @@ app.post("/extract-voice", async (req, res) => {
       ...extractedData,
       lat,
       lng,
-      status: extractedData.confidence < 0.6 ? "needs_review" : "pending",
+      status:
+        extractedData.confidence < 0.6 ? "needs_review" : "needs_approval",
       assigned_volunteer_id: null,
       assigned_volunteer_name: null,
       assignment_rationale: null,
       created_at: new Date().toISOString(),
+      approved_at: null,
       assigned_at: null,
       completed_at: null,
     };
@@ -112,7 +117,7 @@ app.post("/extract-voice", async (req, res) => {
 
 // Endpoint 2: Match using AI and update Firestore
 app.post("/match-request", async (req, res) => {
-  const { requestId } = req.body;
+  const { requestId, includeSeed = false } = req.body;
 
   if (!requestId) {
     return res.status(400).json({ error: "requestId is required" });
@@ -136,11 +141,7 @@ app.post("/match-request", async (req, res) => {
       .where("status", "==", "available")
       .get();
 
-    if (volunteersSnapshot.empty) {
-      return res.json({ message: "No volunteers currently available." });
-    }
-
-    const availableVolunteers = volunteersSnapshot.docs.map((doc) => {
+    let availableVolunteers = volunteersSnapshot.docs.map((doc) => {
       const v = { id: doc.id, ...doc.data() };
       const km = distanceKm(
         { lat: requestData.lat, lng: requestData.lng },
@@ -149,6 +150,15 @@ app.post("/match-request", async (req, res) => {
       v.distance_km = km != null ? Math.round(km * 10) / 10 : null;
       return v;
     });
+
+    // Hide seeded demo volunteers from real-world matching unless caller opts in
+    if (!includeSeed) {
+      availableVolunteers = availableVolunteers.filter((v) => !v.is_seed);
+    }
+
+    if (availableVolunteers.length === 0) {
+      return res.json({ message: "No volunteers currently available." });
+    }
 
     // 3. Ask Gemini Matcher to make a decision
     const matchDecision = await findBestVolunteerMatch(
@@ -194,31 +204,55 @@ app.post("/match-request", async (req, res) => {
   }
 });
 
-// Endpoint 3: Add or update user profile
+// Endpoint 3: Add or update user profile.
+// Self-signup is volunteer-only — admin accounts are created out of band
+// (via the seed script or directly in the Firebase console).
 app.post("/add-user", async (req, res) => {
-  const { firebaseUid, email, name, role, skills } = req.body;
+  const { firebaseUid, email, name, skills, lat, lng, location_text } =
+    req.body;
 
-  if (!firebaseUid || !email || !name || !role) {
+  if (!firebaseUid || !email || !name) {
     return res.status(400).json({
-      error: "firebaseUid, email, name, and role are required",
+      error: "firebaseUid, email, and name are required",
     });
-  }
-
-  if (!["ADMIN", "VOLUNTEER"].includes(role)) {
-    return res.status(400).json({ error: "role must be ADMIN or VOLUNTEER" });
   }
 
   try {
     const userRef = db.collection("users").doc(firebaseUid);
     const userDoc = await userRef.get();
+    const existing = userDoc.exists ? userDoc.data() : null;
+
+    // Preserve admin role if it was set out-of-band (seed / console).
+    // Otherwise force VOLUNTEER. The client cannot promote itself.
+    const role = existing?.role === "ADMIN" ? "ADMIN" : "VOLUNTEER";
+
+    // Resolve coordinates. Order of preference:
+    //   1. Coordinates the client provided (browser geolocation)
+    //   2. Geocoded from location_text (city/area lookup)
+    //   3. Whatever was on the existing user doc
+    let resolvedLat =
+      typeof lat === "number" ? lat : existing?.lat ?? null;
+    let resolvedLng =
+      typeof lng === "number" ? lng : existing?.lng ?? null;
+    if ((resolvedLat == null || resolvedLng == null) && location_text) {
+      const r = geocode(location_text);
+      if (r.lat != null && r.lng != null) {
+        resolvedLat = r.lat;
+        resolvedLng = r.lng;
+      }
+    }
 
     const userData = {
       firebaseUid,
       email,
       name,
       role,
-      skills: Array.isArray(skills) ? skills : [],
-      status: role === "ADMIN" ? "active" : "available",
+      skills: Array.isArray(skills) ? skills : existing?.skills || [],
+      lat: resolvedLat,
+      lng: resolvedLng,
+      location_text:
+        location_text || existing?.location_text || null,
+      status: role === "ADMIN" ? "active" : existing?.status || "available",
       updated_at: new Date().toISOString(),
     };
 
@@ -319,6 +353,186 @@ app.post("/complete-request", async (req, res) => {
     res
       .status(500)
       .json({ error: "Failed to complete request", message: error.message });
+  }
+});
+
+// Approve a request — moves needs_approval / needs_review into matchable state
+app.post("/approve-request", async (req, res) => {
+  const { requestId } = req.body;
+  if (!requestId) {
+    return res.status(400).json({ error: "requestId is required" });
+  }
+  try {
+    const reqRef = db.collection("requests").doc(requestId);
+    const snap = await reqRef.get();
+    if (!snap.exists) {
+      return res.status(404).json({ error: "Request not found" });
+    }
+    const data = snap.data();
+    if (!["needs_approval", "needs_review"].includes(data.status)) {
+      return res
+        .status(409)
+        .json({ error: `Request is already ${data.status}` });
+    }
+    await reqRef.update({
+      status: "pending",
+      approved_at: new Date().toISOString(),
+    });
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Approve error:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to approve request", message: error.message });
+  }
+});
+
+// Bulk approve — useful for demo mode
+app.post("/approve-all", async (req, res) => {
+  try {
+    const snap = await db
+      .collection("requests")
+      .where("status", "in", ["needs_approval", "needs_review"])
+      .get();
+    if (snap.empty) return res.json({ success: true, approved: 0 });
+    const batch = db.batch();
+    snap.docs.forEach((d) => {
+      batch.update(d.ref, {
+        status: "pending",
+        approved_at: new Date().toISOString(),
+      });
+    });
+    await batch.commit();
+    res.json({ success: true, approved: snap.size });
+  } catch (error) {
+    console.error("Approve-all error:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to bulk approve", message: error.message });
+  }
+});
+
+// Manual assignment — coordinator picks the volunteer themselves
+app.post("/assign-request", async (req, res) => {
+  const { requestId, volunteerId } = req.body;
+  if (!requestId || !volunteerId) {
+    return res
+      .status(400)
+      .json({ error: "requestId and volunteerId are required" });
+  }
+  try {
+    const reqRef = db.collection("requests").doc(requestId);
+    const reqSnap = await reqRef.get();
+    if (!reqSnap.exists) {
+      return res.status(404).json({ error: "Request not found" });
+    }
+    const requestData = reqSnap.data();
+
+    const volRef = db.collection("users").doc(volunteerId);
+    const volSnap = await volRef.get();
+    if (!volSnap.exists) {
+      return res.status(404).json({ error: "Volunteer not found" });
+    }
+    const volunteer = volSnap.data();
+    if (volunteer.role !== "VOLUNTEER") {
+      return res
+        .status(400)
+        .json({ error: "Selected user is not a volunteer" });
+    }
+    if (volunteer.is_seed) {
+      return res.status(400).json({
+        error:
+          "Seeded demo volunteers cannot be manually assigned. Use Demo Mode for those.",
+      });
+    }
+
+    const km =
+      typeof requestData.lat === "number" &&
+      typeof requestData.lng === "number" &&
+      typeof volunteer.lat === "number" &&
+      typeof volunteer.lng === "number"
+        ? distanceKm(
+            { lat: requestData.lat, lng: requestData.lng },
+            { lat: volunteer.lat, lng: volunteer.lng },
+          )
+        : null;
+
+    const distancePart =
+      km != null ? ` ${(Math.round(km * 10) / 10).toFixed(1)} km away.` : "";
+
+    const batch = db.batch();
+    batch.update(reqRef, {
+      status: "assigned",
+      assigned_volunteer_id: volunteerId,
+      assigned_volunteer_name: volunteer.name || null,
+      assigned_volunteer_lat: volunteer.lat ?? null,
+      assigned_volunteer_lng: volunteer.lng ?? null,
+      assigned_volunteer_distance_km: km != null ? Math.round(km * 10) / 10 : null,
+      assignment_rationale: `Manually assigned by coordinator.${distancePart}`,
+      assigned_at: new Date().toISOString(),
+      // Auto-approve at the same time so the workflow flows naturally
+      approved_at: requestData.approved_at || new Date().toISOString(),
+    });
+    batch.update(volRef, { status: "dispatched" });
+    await batch.commit();
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Assign error:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to assign request", message: error.message });
+  }
+});
+
+// Delete a request — also frees any assigned volunteer
+app.post("/delete-request", async (req, res) => {
+  const { requestId } = req.body;
+  if (!requestId) {
+    return res.status(400).json({ error: "requestId is required" });
+  }
+  try {
+    const reqRef = db.collection("requests").doc(requestId);
+    const snap = await reqRef.get();
+    if (!snap.exists) {
+      return res.status(404).json({ error: "Request not found" });
+    }
+    const data = snap.data();
+    const batch = db.batch();
+    batch.delete(reqRef);
+    if (data.assigned_volunteer_id) {
+      const volRef = db.collection("users").doc(data.assigned_volunteer_id);
+      batch.update(volRef, { status: "available" });
+    }
+    await batch.commit();
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Delete error:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to delete request", message: error.message });
+  }
+});
+
+// List volunteers (for the manual-assign picker).
+// Seeded demo volunteers are hidden by default; pass ?includeSeed=true to show them.
+app.get("/volunteers", async (req, res) => {
+  try {
+    let q = db.collection("users").where("role", "==", "VOLUNTEER");
+    if (req.query.available === "true") {
+      q = q.where("status", "==", "available");
+    }
+    const snap = await q.get();
+    let volunteers = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (req.query.includeSeed !== "true") {
+      volunteers = volunteers.filter((v) => !v.is_seed);
+    }
+    res.json(volunteers);
+  } catch (error) {
+    console.error("List volunteers error:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to list volunteers", message: error.message });
   }
 });
 

@@ -1,5 +1,6 @@
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
 // IMPORTANT: Download this from your Firebase Console and place it in the root folder.
 // DO NOT commit it to GitHub.
 import serviceAccount from "./serviceAccountKey.json" with { type: "json" };
@@ -9,3 +10,4 @@ initializeApp({
 });
 
 export const db = getFirestore();
+export const auth = getAuth();
