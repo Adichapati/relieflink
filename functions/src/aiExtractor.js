@@ -38,6 +38,14 @@ const model = genAI.getGenerativeModel({
   },
 });
 
+const FALLBACK = {
+  category: "general_relief",
+  urgency: "high",
+  location_text: "NEEDS MANUAL REVIEW",
+  quantity_details: "NEEDS MANUAL REVIEW",
+  confidence: 0.0,
+};
+
 export async function extractRequestData(rawText) {
   try {
     const prompt = `Extract emergency details. Translate non-English text to English. Text: "${rawText}"`;
@@ -51,13 +59,35 @@ export async function extractRequestData(rawText) {
     return extractedData;
   } catch (error) {
     console.error("\n[DEBUG ERROR]:", error.message);
-    // Return fallback data if AI fails or confidence is too low
-    return {
-      category: "general_relief",
-      urgency: "high",
-      location_text: "NEEDS MANUAL REVIEW",
-      quantity_details: "NEEDS MANUAL REVIEW",
-      confidence: 0.0,
-    };
+    return FALLBACK;
+  }
+}
+
+/**
+ * Extract emergency details from a base64-encoded audio clip.
+ * Mime types Gemini accepts inline: wav, mp3, aiff, aac, ogg, flac.
+ * Returns the same schema as extractRequestData plus a transcript field.
+ */
+export async function extractRequestFromAudio(audioBase64, mimeType = "audio/wav") {
+  try {
+    const result = await model.generateContent([
+      {
+        inlineData: {
+          data: audioBase64,
+          mimeType,
+        },
+      },
+      `This is a spoken disaster-relief distress message. First, transcribe it. Then extract emergency details. Translate non-English speech to English. Put the original transcript inside quantity_details if it adds context.`,
+    ]);
+    const extractedData = JSON.parse(result.response.text());
+
+    if (extractedData.confidence < 0.6) {
+      throw new Error("Confidence too low");
+    }
+
+    return extractedData;
+  } catch (error) {
+    console.error("\n[AUDIO EXTRACT ERROR]:", error.message);
+    return FALLBACK;
   }
 }

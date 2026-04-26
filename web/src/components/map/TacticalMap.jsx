@@ -1,9 +1,8 @@
-import { useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { useEffect, useMemo, useRef } from 'react';
+import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-
-/* ── Custom urgency-coded marker icons ── */
+import { geocodeLocation, urgencyKey } from '../../lib/taskAdapter';
 
 function createPinIcon(color) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="36" viewBox="0 0 24 36">
@@ -19,13 +18,22 @@ function createPinIcon(color) {
   });
 }
 
+const VOLUNTEER_ICON = L.divIcon({
+  html: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22">
+    <circle cx="11" cy="11" r="9" fill="#00ff88" opacity="0.18"/>
+    <circle cx="11" cy="11" r="5" fill="#00ff88"/>
+    <circle cx="11" cy="11" r="2" fill="#0a0a0a"/>
+  </svg>`,
+  className: 'tactical-volunteer-marker',
+  iconSize: [22, 22],
+  iconAnchor: [11, 11],
+});
+
 const ICONS = {
   high: createPinIcon('#ff3333'),
   medium: createPinIcon('#ffaa00'),
   low: createPinIcon('#00cc66'),
 };
-
-/* ── Radar pulse overlay injected via DOM ── */
 
 function RadarPulse({ position, color = '#ff3333' }) {
   const map = useMap();
@@ -34,12 +42,7 @@ function RadarPulse({ position, color = '#ff3333' }) {
   useEffect(() => {
     const el = document.createElement('div');
     el.className = 'radar-pulse-ring';
-    el.style.cssText = `
-      --radar-color: ${color};
-      position: absolute;
-      pointer-events: none;
-      z-index: 500;
-    `;
+    el.style.cssText = `--radar-color: ${color}; position: absolute; pointer-events: none; z-index: 500;`;
     elRef.current = el;
     map.getPane('overlayPane').appendChild(el);
 
@@ -60,48 +63,103 @@ function RadarPulse({ position, color = '#ff3333' }) {
   return null;
 }
 
-/* ── Match line: animated arc connecting request → volunteer ── */
-
-function MatchLine({ from, to, color = '#00ff88' }) {
+function RouteLabel({ position, distanceKm }) {
   const map = useMap();
-  const lineRef = useRef(null);
+  const elRef = useRef(null);
 
   useEffect(() => {
-    const line = L.polyline([from, to], {
-      color,
-      weight: 1.5,
-      opacity: 0.6,
-      dashArray: '6 4',
-      className: 'match-line-path',
-    }).addTo(map);
-    lineRef.current = line;
-    return () => { line.remove(); };
-  }, [map, from, to, color]);
+    const el = document.createElement('div');
+    el.className = 'route-distance-label mono';
+    el.textContent = `${distanceKm.toFixed(1)} km`;
+    elRef.current = el;
+    map.getPane('overlayPane').appendChild(el);
+
+    const update = () => {
+      const point = map.latLngToLayerPoint(position);
+      el.style.left = `${point.x}px`;
+      el.style.top = `${point.y}px`;
+    };
+    update();
+    map.on('zoom move', update);
+
+    return () => {
+      map.off('zoom move', update);
+      el.remove();
+    };
+  }, [map, position, distanceKm]);
 
   return null;
 }
 
-/* ── Map data (shared with globe pins) ── */
+function resolveCoords(t) {
+  if (typeof t.lat === 'number' && typeof t.lng === 'number') {
+    return [t.lat, t.lng];
+  }
+  return geocodeLocation(t.locationText) || null;
+}
 
-const REQUESTS = [
-  { id: 1, lat: 12.97, lng: 77.59, urgency: 'high', label: 'Bangalore — Food & Water' },
-  { id: 2, lat: 28.61, lng: 77.23, urgency: 'medium', label: 'Delhi — Medical Supplies' },
-  { id: 3, lat: 6.5, lng: 3.4, urgency: 'high', label: 'Lagos — Emergency Shelter' },
-  { id: 4, lat: -1.3, lng: 36.8, urgency: 'medium', label: 'Nairobi — Water Purification' },
-  { id: 5, lat: 30.0, lng: 31.2, urgency: 'low', label: 'Cairo — Volunteer Coordination' },
-  { id: 6, lat: -23.5, lng: -46.6, urgency: 'high', label: 'São Paulo — Flood Relief' },
-  { id: 7, lat: 48.8, lng: 2.3, urgency: 'low', label: 'Paris — Logistics Hub' },
-];
+export default function TacticalMap({ tasks = [] }) {
+  const { pins, volunteerPins, routes, ungeocoded } = useMemo(() => {
+    const pins = [];
+    const routes = [];
+    const volunteerMap = new Map(); // dedupe volunteers
+    let ungeocoded = 0;
 
-const MATCHES = [
-  { from: [12.97, 77.59], to: [13.08, 77.58], color: '#00ff88' },
-  { from: [6.5, 3.4], to: [6.45, 3.42], color: '#00ff88' },
-  { from: [-23.5, -46.6], to: [-23.55, -46.63], color: '#00ff88' },
-];
+    for (const t of tasks) {
+      const coords = resolveCoords(t);
+      if (!coords) { ungeocoded += 1; continue; }
+      pins.push({
+        id: t.id,
+        lat: coords[0],
+        lng: coords[1],
+        urgency: urgencyKey(t.urgency),
+        label: `${t.locationText || 'Unknown'} — ${t.category || 'Unclassified'}`,
+        status: t.status,
+        volunteerName: t.assignedVolunteerName,
+      });
 
-/* ── Main Component ── */
+      const isRouted =
+        (t.status === 'assigned' || t.status === 'dispatched') &&
+        typeof t.assignedVolunteerLat === 'number' &&
+        typeof t.assignedVolunteerLng === 'number';
 
-export default function TacticalMap() {
+      if (isRouted) {
+        const vKey = `${t.assignedVolunteerId || t.assignedVolunteerName}`;
+        if (!volunteerMap.has(vKey)) {
+          volunteerMap.set(vKey, {
+            id: vKey,
+            lat: t.assignedVolunteerLat,
+            lng: t.assignedVolunteerLng,
+            name: t.assignedVolunteerName || 'Volunteer',
+          });
+        }
+        const km =
+          typeof t.assignedVolunteerDistanceKm === 'number'
+            ? t.assignedVolunteerDistanceKm
+            : haversine(
+                [t.assignedVolunteerLat, t.assignedVolunteerLng],
+                coords,
+              );
+        routes.push({
+          id: t.id,
+          from: [t.assignedVolunteerLat, t.assignedVolunteerLng],
+          to: coords,
+          status: t.status,
+          distanceKm: km,
+        });
+      }
+    }
+
+    return {
+      pins,
+      volunteerPins: Array.from(volunteerMap.values()),
+      routes,
+      ungeocoded,
+    };
+  }, [tasks]);
+
+  const totalGeocoded = pins.length;
+
   return (
     <div className="tactical-map-wrapper">
       <MapContainer
@@ -120,25 +178,93 @@ export default function TacticalMap() {
           maxZoom={19}
         />
 
-        {REQUESTS.map((r) => (
-          <Marker key={r.id} position={[r.lat, r.lng]} icon={ICONS[r.urgency]}>
+        {routes.map((r) => (
+          <Polyline
+            key={`route-${r.id}`}
+            positions={[r.from, r.to]}
+            pathOptions={{
+              color: r.status === 'dispatched' ? '#00ff88' : '#88aaff',
+              weight: 2,
+              opacity: 0.85,
+              dashArray: r.status === 'dispatched' ? null : '6 6',
+              className: r.status === 'dispatched'
+                ? 'route-line dispatched'
+                : 'route-line assigned',
+            }}
+          />
+        ))}
+
+        {routes.map((r) => (
+          <RouteLabel
+            key={`route-label-${r.id}`}
+            position={[(r.from[0] + r.to[0]) / 2, (r.from[1] + r.to[1]) / 2]}
+            distanceKm={r.distanceKm}
+          />
+        ))}
+
+        {pins.map((p) => (
+          <Marker key={p.id} position={[p.lat, p.lng]} icon={ICONS[p.urgency]}>
             <Popup className="tactical-popup">
               <div className="popup-inner">
-                <span className={`popup-urgency ${r.urgency}`}>{r.urgency.toUpperCase()}</span>
-                <span className="popup-label">{r.label}</span>
+                <span className={`popup-urgency ${p.urgency}`}>{p.urgency.toUpperCase()}</span>
+                <span className="popup-label">{p.label}</span>
+                <span className="popup-status mono">{p.status}</span>
+                {p.volunteerName && (
+                  <span className="popup-volunteer mono">→ {p.volunteerName}</span>
+                )}
               </div>
             </Popup>
           </Marker>
         ))}
 
-        {REQUESTS.filter(r => r.urgency === 'high').map((r) => (
-          <RadarPulse key={`radar-${r.id}`} position={[r.lat, r.lng]} color="#ff3333" />
+        {volunteerPins.map((v) => (
+          <Marker key={`vol-${v.id}`} position={[v.lat, v.lng]} icon={VOLUNTEER_ICON}>
+            <Popup className="tactical-popup">
+              <div className="popup-inner">
+                <span className="popup-urgency low">VOLUNTEER</span>
+                <span className="popup-label">{v.name}</span>
+              </div>
+            </Popup>
+          </Marker>
         ))}
 
-        {MATCHES.map((m, i) => (
-          <MatchLine key={i} from={m.from} to={m.to} color={m.color} />
+        {pins.filter((p) => p.urgency === 'high').map((p) => (
+          <RadarPulse key={`radar-${p.id}`} position={[p.lat, p.lng]} color="#ff3333" />
         ))}
       </MapContainer>
+
+      <div className="map-overlay-badge mono">
+        <span className="map-badge-dot" />
+        <span>{totalGeocoded} geocoded</span>
+        {routes.length > 0 && (
+          <span className="map-badge-dim">· {routes.length} en route</span>
+        )}
+        {ungeocoded > 0 && <span className="map-badge-dim">· {ungeocoded} pending</span>}
+      </div>
+
+      {routes.length > 0 && (
+        <div className="map-legend mono">
+          <div className="map-legend-item">
+            <span className="map-legend-line dashed" /> Assigned
+          </div>
+          <div className="map-legend-item">
+            <span className="map-legend-line solid" /> Dispatched
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function haversine(a, b) {
+  const R = 6371;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(b[0] - a[0]);
+  const dLng = toRad(b[1] - a[1]);
+  const lat1 = toRad(a[0]);
+  const lat2 = toRad(b[0]);
+  const x =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(x));
 }

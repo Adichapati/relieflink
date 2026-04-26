@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(rm -f package-lock.json)",
+      "Bash(npm install *)",
+      "Bash(npm --prefix web run build)",
+      "WebSearch"
+    ]
+  }
+}

@@ -26,17 +26,25 @@ const model = genAI.getGenerativeModel({
 
 export async function findBestVolunteerMatch(requestData, availableVolunteers) {
   try {
-    const prompt = `You are an expert disaster relief dispatcher. 
-    
-    Emergency Request Details:
-    ${JSON.stringify(requestData, null, 2)}
-    
-    Available Volunteers:
-    ${JSON.stringify(availableVolunteers, null, 2)}
-    
-    Analyze the request against the volunteers' skills, locations, and capacity. 
-    Select the single BEST volunteer for this request. If no one is a safe or logical fit, return volunteerId as "NONE".
-    Provide a short rationale for your choice and a confidence score (0.0 to 1.0).`;
+    const prompt = `You are an expert disaster relief dispatcher.
+
+Emergency Request Details:
+${JSON.stringify(requestData, null, 2)}
+
+Available Volunteers (distance_km is the haversine distance to the request, in kilometres; null means unknown):
+${JSON.stringify(availableVolunteers, null, 2)}
+
+Pick the SINGLE best volunteer using these priorities, in order:
+1. Skill match for the request category (medical for medicine, food prep for food, etc).
+2. Lowest distance_km when known.
+3. General availability.
+
+If no volunteer is a safe or logical fit, return volunteerId as "NONE".
+
+Return:
+- volunteerId: the id of the chosen volunteer (or "NONE")
+- rationale: ONE short sentence (max 25 words) that names the volunteer, cites the matching skill, and includes the distance like "1.4 km away" when available.
+- confidenceScore: 0.0 to 1.0`;
 
     const result = await model.generateContent(prompt);
     return JSON.parse(result.response.text());

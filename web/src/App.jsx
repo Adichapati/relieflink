@@ -6,6 +6,7 @@ import LandingPage from "./pages/LandingPage";
 import AuthPage from "./pages/AuthPage";
 import SkillSetupPage from "./pages/SkillSetupPage";
 import DashboardPage from "./pages/DashboardPage";
+import ToastContainer from "./components/ui/ToastContainer";
 
 export const AuthContext = createContext(null);
 
@@ -58,6 +59,7 @@ export default function App() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="*" element={<Navigate replace to="/" />} />
         </Routes>
+        <ToastContainer />
       </BrowserRouter>
     </AuthContext.Provider>
   );

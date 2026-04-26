@@ -1,12 +1,5 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useMemo } from 'react';
 import AnimatedCounter from '../dashboard/AnimatedCounter';
-
-const IMPACT_STATS = [
-  { value: 1247, label: 'People Helped', suffix: '+', icon: '🤝' },
-  { value: 86, label: 'Match Accuracy', suffix: '%', icon: '🎯' },
-  { value: 4.2, label: 'Min Avg Response', suffix: '', icon: '⚡' },
-  { value: 23, label: 'Countries Reached', suffix: '', icon: '🌍' },
-];
 
 const TIMELINE = [
   { time: '0s', label: 'Distress signal received', detail: 'Raw text parsed by AI' },
@@ -15,9 +8,40 @@ const TIMELINE = [
   { time: '~4m', label: 'Resources dispatched', detail: 'Aid en route to affected area' },
 ];
 
-export default function ImpactSection() {
+function avgMinutes(tasks) {
+  const deltas = [];
+  for (const t of tasks) {
+    if (t.assignedAt && t.createdAt) {
+      const diff = new Date(t.assignedAt) - new Date(t.createdAt);
+      if (diff > 0) deltas.push(diff);
+    }
+  }
+  if (!deltas.length) return null;
+  const avgMs = deltas.reduce((a, b) => a + b, 0) / deltas.length;
+  return Math.max(0.1, Math.round((avgMs / 60000) * 10) / 10);
+}
+
+function computeStats(tasks = []) {
+  const total = tasks.length;
+  const completed = tasks.filter((t) => t.status === 'completed').length;
+  const matched = tasks.filter(
+    (t) => t.status === 'assigned' || t.status === 'dispatched' || t.status === 'completed',
+  ).length;
+  const matchAccuracy = total > 0 ? Math.round((matched / total) * 100) : 0;
+  const avg = avgMinutes(tasks);
+
+  return [
+    { value: completed, label: 'Cases Resolved', suffix: '', icon: '🤝' },
+    { value: matchAccuracy, label: 'Match Rate', suffix: '%', icon: '🎯' },
+    { value: avg ?? 0.5, label: 'Min Avg Response', suffix: '', icon: '⚡' },
+    { value: total, label: 'Signals Decoded', suffix: '', icon: '🌍' },
+  ];
+}
+
+export default function ImpactSection({ tasks = [] }) {
   const sectionRef = useRef(null);
   const [visible, setVisible] = useState(false);
+  const stats = useMemo(() => computeStats(tasks), [tasks]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -42,7 +66,7 @@ export default function ImpactSection() {
 
       {/* Stats grid */}
       <div className={`impact-stats ${visible ? 'visible' : ''}`}>
-        {IMPACT_STATS.map((stat) => (
+        {stats.map((stat) => (
           <div key={stat.label} className="impact-stat-card">
             <span className="impact-stat-icon">{stat.icon}</span>
             <span className="impact-stat-value mono">

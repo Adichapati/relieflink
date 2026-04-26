@@ -1,93 +1,153 @@
-import { useEffect, useState } from "react";
+import { useCallback, useMemo } from 'react';
+import { useScrollProgress } from '../hooks/useScrollProgress';
+import { useGlobeState } from '../hooks/useGlobeState';
+import { useLiveTasks } from '../hooks/useLiveTasks';
+import GlobeScene from '../components/globe/GlobeScene';
+import Navbar from '../components/layout/Navbar';
+import ScrollProgress from '../components/ui/ScrollProgress';
+import HeroSection from '../components/sections/HeroSection';
+import OperationsSection from '../components/sections/OperationsSection';
+import RequestCard from '../components/dashboard/RequestCard';
+import { taskToCard } from '../lib/taskAdapter';
 
-function normalizeTask(task) {
-  return {
-    id: task.id,
-    rawText: task.raw_text || task.rawText,
-    category: task.category,
-    urgency: task.urgency,
-    locationText: task.location_text || task.locationText,
-    quantityOrDetails: task.quantity_details || task.quantityOrDetails,
-    confidence:
-      typeof task.confidence === "number"
-        ? task.confidence < 0.6
-          ? "review"
-          : "high"
-        : task.confidence,
-    status: task.status,
-    assignedVolunteerId: task.assigned_volunteer_id || task.assignedVolunteerId,
-    assignedVolunteerName:
-      task.assigned_volunteer_name || task.assignedVolunteerName,
-    assignmentRationale: task.assignment_rationale || task.assignmentRationale,
-    createdAt: task.created_at || task.createdAt,
-    assignedAt: task.assigned_at || task.assignedAt,
-    completedAt: task.completed_at || task.completedAt,
-  };
+const API_BASE = 'http://localhost:8787';
+
+function MyMissionsSection({ missions, profile, onAccept, onDecline, onComplete }) {
+  const skills = Array.isArray(profile?.skills) ? profile.skills : [];
+
+  return (
+    <section className="section my-missions" id="missions">
+      <div className="missions-header">
+        <span className="section-eyebrow mono">02 // Field Briefing</span>
+        <h2 className="section-title">
+          Your <span className="accent">Missions</span>
+        </h2>
+        <p className="section-subtitle">
+          Tasks the matching engine has assigned to you. Pull up coordinates from the tactical map below.
+        </p>
+
+        {skills.length > 0 && (
+          <div className="missions-skills">
+            <span className="skills-label mono">Your skills</span>
+            {skills.map((s) => (
+              <span key={s} className="skill-pill mono">{s}</span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {missions.length === 0 ? (
+        <div className="mission-empty mono">
+          <span className="mission-empty-dot" />
+          No missions assigned yet. Stand by — the matcher will route requests to you when they fit your skills.
+        </div>
+      ) : (
+        <div className="mission-grid">
+          {missions.map((m) => (
+            <RequestCard
+              key={m.id}
+              request={m}
+              highlight
+              showVolunteerActions
+              onAccept={onAccept}
+              onDecline={onDecline}
+              onMissionComplete={onComplete}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
 }
 
 export default function VolunteerDashboard({ profile }) {
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const scrollProgress = useScrollProgress();
+  const globeState = useGlobeState(scrollProgress);
+  const isScrolled = scrollProgress > 0.02;
 
-  const fetchTasks = async () => {
-    setLoading(true);
-    const response = await fetch("http://localhost:8787/tasks");
-    if (response.ok) {
-      const data = await response.json();
-      setTasks(data.map(normalizeTask));
-    }
-    setLoading(false);
-  };
+  const { tasks, loading } = useLiveTasks();
 
-  useEffect(() => {
-    fetchTasks();
-  }, []);
+  const myUid = profile?.firebaseUid || profile?.id;
+  const myTasks = useMemo(
+    () => tasks.filter((t) => t.assignedVolunteerId === myUid),
+    [tasks, myUid],
+  );
 
-  const myTasks = tasks.filter(
-    (task) => task.assignedVolunteerId === profile.firebaseUid,
+  const myMissionCards = useMemo(() => myTasks.map(taskToCard), [myTasks]);
+
+  const callMissionEndpoint = useCallback(
+    async (path, requestId) => {
+      if (!myUid) return;
+      await fetch(`${API_BASE}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId, volunteerId: myUid }),
+      });
+    },
+    [myUid],
+  );
+
+  const handleAccept = useCallback(
+    (id) => callMissionEndpoint('/accept-mission', id),
+    [callMissionEndpoint],
+  );
+  const handleDecline = useCallback(
+    (id) => callMissionEndpoint('/decline-mission', id),
+    [callMissionEndpoint],
+  );
+  const handleComplete = useCallback(
+    (id) => callMissionEndpoint('/complete-mission', id),
+    [callMissionEndpoint],
   );
 
   return (
-    <div className="page-shell">
-      <section className="panel">
-        <p className="eyebrow">Volunteer dashboard</p>
-        <h1>Welcome, {profile.name}</h1>
-        <p className="helper-text">
-          Your assigned tasks will appear below once the admin or matching
-          service allocates them.
-        </p>
-      </section>
+    <>
+      <div className="star-field" />
 
-      <section className="workspace-grid">
-        <section className="panel">
-          <h2>Your assigned tasks</h2>
-          {loading ? (
-            <p>Loading tasks…</p>
-          ) : myTasks.length ? (
-            myTasks.map((task) => (
-              <article key={task.id} className="request-card">
-                <p>{task.rawText}</p>
-                <div className="field-list">
-                  <span>
-                    <strong>Category:</strong> {task.category}
-                  </span>
-                  <span>
-                    <strong>Location:</strong> {task.locationText}
-                  </span>
-                  <span>
-                    <strong>Details:</strong> {task.quantityOrDetails}
-                  </span>
-                  <span>
-                    <strong>Status:</strong> {task.status}
-                  </span>
-                </div>
-              </article>
-            ))
-          ) : (
-            <p>No assigned tasks yet.</p>
-          )}
-        </section>
-      </section>
-    </div>
+      <Navbar scrolled={isScrolled} profile={profile} />
+      <ScrollProgress progress={scrollProgress} />
+
+      <div
+        className="globe-layer"
+        style={{ opacity: Math.min(0.55, globeState.opacity) }}
+      >
+        <GlobeScene globeState={globeState} />
+      </div>
+
+      <main className="content-layer">
+        <HeroSection
+          eyebrow={`Volunteer · ${profile?.name ?? 'Field Operative'}`}
+          title="Mission Control"
+          subtitle={
+            loading
+              ? 'Locating your assignments…'
+              : myTasks.length > 0
+                ? `${myTasks.length} mission${myTasks.length === 1 ? '' : 's'} assigned. Network has ${tasks.length} active signal${tasks.length === 1 ? '' : 's'}.`
+                : `Standing by. Network has ${tasks.length} active signal${tasks.length === 1 ? '' : 's'} — the matcher will assign work that fits your skills.`
+          }
+          ctaLabel={myTasks.length > 0 ? 'View My Missions' : 'View Operations'}
+          scrollTargetId={myTasks.length > 0 ? 'missions' : 'operations'}
+        />
+
+        <section className="section" style={{ height: '100vh' }} />
+
+        <MyMissionsSection
+          missions={myMissionCards}
+          profile={profile}
+          onAccept={handleAccept}
+          onDecline={handleDecline}
+          onComplete={handleComplete}
+        />
+
+        <OperationsSection
+          tasks={tasks}
+          highlightVolunteerId={myUid}
+          title="Network"
+          titleAccent="Operations"
+          eyebrow="03 // Field Awareness"
+          defaultView="map"
+        />
+      </main>
+    </>
   );
 }
