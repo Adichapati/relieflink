@@ -195,6 +195,44 @@ export function relativeTime(isoString) {
   return `${day}d ago`;
 }
 
+/* Coarse continent classifier from lat/lng. Boundaries are deliberately
+   forgiving — the globe just needs to know which landmass to pin to. */
+function continentFromLatLng(lat, lng) {
+  if (typeof lat !== 'number' || typeof lng !== 'number') return null;
+  // Oceania first (overlaps Asia in lng terms)
+  if (lat <= 0 && lng >= 110 && lng <= 180) return 'Oceania';
+  if (lat <= -10 && lng >= 110 && lng <= 180) return 'Oceania';
+  // Africa
+  if (lat >= -36 && lat <= 38 && lng >= -18 && lng <= 52) return 'Africa';
+  // Europe
+  if (lat >= 35 && lat <= 72 && lng >= -25 && lng <= 50) return 'Europe';
+  // Asia (broad)
+  if (lat >= -10 && lat <= 78 && lng >= 50 && lng <= 180) return 'Asia';
+  // North America
+  if (lat >= 8 && lng >= -170 && lng <= -50) return 'North America';
+  // South America
+  if (lat <= 14 && lng >= -82 && lng <= -34) return 'South America';
+  return null;
+}
+
+export function tasksToGlobePins(tasks = []) {
+  const pins = [];
+  for (const t of tasks) {
+    if (typeof t.lat !== 'number' || typeof t.lng !== 'number') continue;
+    if (t.status === 'completed' || t.status === 'resolved') continue;
+    const continent = continentFromLatLng(t.lat, t.lng);
+    if (!continent) continue;
+    pins.push({
+      id: t.id,
+      lat: t.lat,
+      lng: t.lng,
+      urgency: urgencyKey(t.urgency),
+      continent,
+    });
+  }
+  return pins;
+}
+
 export function taskToCard(task) {
   return {
     id: task.id,

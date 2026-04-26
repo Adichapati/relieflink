@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   createUserWithEmailAndPassword,
@@ -7,6 +7,7 @@ import {
   signInWithPopup,
 } from 'firebase/auth';
 import { auth } from '../firebaseClient';
+import { AuthContext } from '../App';
 
 const API_BASE = 'http://localhost:8787';
 
@@ -19,6 +20,7 @@ export default function AuthPage() {
   const [submitting, setSubmitting] = useState(false);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { user, profile } = useContext(AuthContext);
 
   useEffect(() => {
     const requested = searchParams.get('mode');
@@ -27,9 +29,22 @@ export default function AuthPage() {
     }
   }, [searchParams]);
 
+  // Once Firebase auth state confirms a user, leave /auth automatically.
+  // Goes to /dashboard if profile exists, otherwise /setup.
+  useEffect(() => {
+    if (user) {
+      navigate(profile ? '/dashboard' : '/setup', { replace: true });
+    }
+  }, [user, profile, navigate]);
+
   const routeAfterLogin = async (uid) => {
-    const response = await fetch(`${API_BASE}/user/${uid}`);
-    navigate(response.ok ? '/dashboard' : '/setup');
+    try {
+      const response = await fetch(`${API_BASE}/user/${uid}`);
+      navigate(response.ok ? '/dashboard' : '/setup', { replace: true });
+    } catch {
+      // Network down — let the AuthContext effect above handle it once
+      // the profile fetch in App.jsx settles.
+    }
   };
 
   const handleSignup = async (event) => {

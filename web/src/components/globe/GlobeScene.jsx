@@ -7,8 +7,8 @@ import Atmosphere from './Atmosphere';
 import WorldGeometry from './WorldGeometry';
 import { GLOBE_CAMERA } from './globeConfig';
 
-/* Each pin is tagged with its continent so it lifts with the landmass */
-const DEMO_PINS = [
+/* Used by the landing page when there is no live task data yet */
+const FALLBACK_PINS = [
   { lat: 12.97, lng: 77.59, urgency: 'high', continent: 'Asia' },
   { lat: 28.61, lng: 77.23, urgency: 'medium', continent: 'Asia' },
   { lat: 6.5, lng: 3.4, urgency: 'high', continent: 'Africa' },
@@ -58,7 +58,7 @@ function ShootingStar({ delay }) {
    can never block the drag with stopPropagation.
    Continent hover pause is handled via onContinentHover callback. */
 
-function InteractiveGlobe({ rotationSpeed = 1, scale = 1 }) {
+function InteractiveGlobe({ rotationSpeed = 1, scale = 1, pins = FALLBACK_PINS }) {
   const groupRef = useRef();
   const isDragging = useRef(false);
   const lastX = useRef(0);
@@ -123,7 +123,7 @@ function InteractiveGlobe({ rotationSpeed = 1, scale = 1 }) {
       <GlobeMesh />
       <Atmosphere />
       {/* Pins render inside ContinentGroups so they lift on hover */}
-      <WorldGeometry pins={DEMO_PINS} onContinentHover={onContinentHover} />
+      <WorldGeometry pins={pins} onContinentHover={onContinentHover} />
     </group>
   );
 }
@@ -151,7 +151,7 @@ function ContinentTooltip({ info }) {
 
 /* ── Main scene ── */
 
-export default function GlobeScene({ globeState = {} }) {
+export default function GlobeScene({ globeState = {}, pins }) {
   const { rotationSpeed = 1, scale = 1 } = globeState;
   const [tooltipInfo, setTooltipInfo] = useState(null);
 
@@ -180,7 +180,11 @@ export default function GlobeScene({ globeState = {} }) {
         <pointLight position={[0, -150, 100]} intensity={0.3} color="#aaaacc" />
 
         <Suspense fallback={null}>
-          <InteractiveGlobe rotationSpeed={rotationSpeed} scale={scale} />
+          <InteractiveGlobe
+            rotationSpeed={rotationSpeed}
+            scale={scale}
+            pins={pins && pins.length ? pins : FALLBACK_PINS}
+          />
         </Suspense>
 
         <Stars radius={200} depth={100} count={2500} factor={5} saturation={0} fade speed={0.4} />

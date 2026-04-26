@@ -13,11 +13,10 @@ const CONTINENT_CENTERS = {
   Oceania: [135, -25],
 };
 
-/* Request counts per continent (matches DEMO_PINS) */
-const CONTINENT_REQUESTS = {
-  Africa: 2, Europe: 1, Asia: 2,
-  'North America': 0, 'South America': 1,
-  Oceania: 0,
+/* Default counts when no live data has been loaded yet */
+const EMPTY_REQUESTS = {
+  Africa: 0, Europe: 0, Asia: 0,
+  'North America': 0, 'South America': 0, Oceania: 0,
 };
 
 function latLngToVec3(lat, lng, r) {
@@ -196,15 +195,17 @@ const ContinentGroup = memo(function ContinentGroup({ name, geometries, pins, on
 export default function WorldGeometry({ pins = [], onContinentHover }) {
   const [continents, setContinents] = useState(null);
 
-  /* Group pins by continent */
-  const pinsByContinent = useMemo(() => {
-    const map = {};
+  /* Group pins by continent + count requests per continent */
+  const { pinsByContinent, requestsByContinent } = useMemo(() => {
+    const byCont = {};
+    const counts = { ...EMPTY_REQUESTS };
     for (const pin of pins) {
       if (!pin.continent) continue;
-      if (!map[pin.continent]) map[pin.continent] = [];
-      map[pin.continent].push(pin);
+      if (!byCont[pin.continent]) byCont[pin.continent] = [];
+      byCont[pin.continent].push(pin);
+      counts[pin.continent] = (counts[pin.continent] || 0) + 1;
     }
-    return map;
+    return { pinsByContinent: byCont, requestsByContinent: counts };
   }, [pins]);
 
   const handleContinentHover = useCallback((hovering, name, coords) => {
@@ -215,7 +216,7 @@ export default function WorldGeometry({ pins = [], onContinentHover }) {
       window.dispatchEvent(new CustomEvent('continent-tooltip', {
         detail: {
           name,
-          requests: CONTINENT_REQUESTS[name] || 0,
+          requests: requestsByContinent[name] || 0,
           x: coords.clientX,
           y: coords.clientY,
         }
@@ -223,7 +224,7 @@ export default function WorldGeometry({ pins = [], onContinentHover }) {
     } else if (!hovering) {
       window.dispatchEvent(new CustomEvent('continent-tooltip', { detail: null }));
     }
-  }, [onContinentHover]);
+  }, [onContinentHover, requestsByContinent]);
 
   useEffect(() => {
     fetch(DATA_URL)

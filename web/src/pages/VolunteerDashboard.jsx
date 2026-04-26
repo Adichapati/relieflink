@@ -8,7 +8,7 @@ import ScrollProgress from '../components/ui/ScrollProgress';
 import HeroSection from '../components/sections/HeroSection';
 import OperationsSection from '../components/sections/OperationsSection';
 import RequestCard from '../components/dashboard/RequestCard';
-import { taskToCard } from '../lib/taskAdapter';
+import { taskToCard, tasksToGlobePins } from '../lib/taskAdapter';
 
 const API_BASE = 'http://localhost:8787';
 
@@ -74,6 +74,7 @@ export default function VolunteerDashboard({ profile }) {
   );
 
   const myMissionCards = useMemo(() => myTasks.map(taskToCard), [myTasks]);
+  const globePins = useMemo(() => tasksToGlobePins(tasks), [tasks]);
 
   const callMissionEndpoint = useCallback(
     async (path, requestId) => {
@@ -111,7 +112,7 @@ export default function VolunteerDashboard({ profile }) {
         className="globe-layer"
         style={{ opacity: Math.min(0.55, globeState.opacity) }}
       >
-        <GlobeScene globeState={globeState} />
+        <GlobeScene globeState={globeState} pins={globePins} />
       </div>
 
       <main className="content-layer">

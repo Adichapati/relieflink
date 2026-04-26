@@ -1,7 +1,8 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useScrollProgress } from '../hooks/useScrollProgress';
 import { useGlobeState } from '../hooks/useGlobeState';
 import { useLiveTasks } from '../hooks/useLiveTasks';
+import { tasksToGlobePins } from '../lib/taskAdapter';
 import GlobeScene from '../components/globe/GlobeScene';
 import Navbar from '../components/layout/Navbar';
 import ScrollProgress from '../components/ui/ScrollProgress';
@@ -99,6 +100,7 @@ export default function AdminDashboard({ profile }) {
 
   const activeCount = tasks.filter((t) => t.status !== 'completed').length;
   const reviewCount = tasks.filter((t) => t.status === 'needs_review').length;
+  const globePins = useMemo(() => tasksToGlobePins(tasks), [tasks]);
 
   return (
     <>
@@ -108,7 +110,7 @@ export default function AdminDashboard({ profile }) {
       <ScrollProgress progress={scrollProgress} />
 
       <div className="globe-layer" style={{ opacity: globeState.opacity }}>
-        <GlobeScene globeState={globeState} />
+        <GlobeScene globeState={globeState} pins={globePins} />
       </div>
 
       <main className="content-layer">
