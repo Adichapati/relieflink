@@ -19,7 +19,7 @@ export default function AuthPage() {
   const [submitting, setSubmitting] = useState(false);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user, profile } = useContext(AuthContext);
+  const { user, profile, loading } = useContext(AuthContext);
 
   useEffect(() => {
     const requested = searchParams.get('mode');
@@ -28,13 +28,13 @@ export default function AuthPage() {
     }
   }, [searchParams]);
 
-  // Once Firebase auth state confirms a user, leave /auth automatically.
-  // Goes to /dashboard if profile exists, otherwise /setup.
+  // Auto-redirect already-signed-in users away from /auth.
+  // Wait for the profile fetch to settle (loading=false) before deciding,
+  // otherwise an admin would briefly hit /setup while the fetch is in flight.
   useEffect(() => {
-    if (user) {
-      navigate(profile ? '/dashboard' : '/setup', { replace: true });
-    }
-  }, [user, profile, navigate]);
+    if (loading || !user) return;
+    navigate(profile ? '/dashboard' : '/setup', { replace: true });
+  }, [user, profile, loading, navigate]);
 
   const routeAfterLogin = async (uid) => {
     try {

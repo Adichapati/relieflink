@@ -13,11 +13,7 @@ request -> AI extraction -> volunteer matching -> coordinator confirmation -> co
 
 ## Before you start
 
-1. Read:
-- `README.md`
-- `docs/hackathon-package.md`
-- `docs/PROJECT_BOARD.md`
-
+1. Read `README.md`.
 2. Pick your assigned GitHub issue.
 3. Comment on the issue if you are taking it.
 4. Make sure nobody else is already working on the same task.

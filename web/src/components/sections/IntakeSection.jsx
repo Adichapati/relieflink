@@ -298,6 +298,7 @@ export default function IntakeSection({
                   {recState === 'recording' && '● Listening…'}
                   {recState === 'processing' && 'Encoding audio…'}
                   {recState === 'ready' && '✓ Audio captured. Decode when ready.'}
+                  {recState === 'silent' && '⚠ No audio detected — try again, closer to the mic.'}
                   {recState === 'error' && (recorder.error || 'Microphone error')}
                 </div>
               </div>
@@ -323,7 +324,10 @@ export default function IntakeSection({
                     <span>Stop ({Math.max(0, 30 - recorder.seconds).toFixed(0)}s left)</span>
                   </button>
                 )}
-                {(recState === 'ready' || recState === 'processing' || recState === 'error') && (
+                {(recState === 'ready' ||
+                  recState === 'silent' ||
+                  recState === 'processing' ||
+                  recState === 'error') && (
                   <>
                     <button
                       className="btn-ghost"

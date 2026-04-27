@@ -20,6 +20,16 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "relieflink-functions" });
 });
 
+// Returns true when the extractor's FALLBACK shape was returned —
+// confidence 0 and the literal sentinel location string.
+function isFallbackExtraction(data) {
+  return (
+    !data ||
+    data.confidence === 0 ||
+    data.location_text === "NEEDS MANUAL REVIEW"
+  );
+}
+
 // Endpoint 1: Extract and save to Firestore
 app.post("/extract-request", async (req, res) => {
   const text = req.body?.text ?? "";
@@ -31,6 +41,11 @@ app.post("/extract-request", async (req, res) => {
 
   try {
     const extractedData = await extractRequestData(text, languageHint);
+    if (isFallbackExtraction(extractedData)) {
+      return res.status(422).json({
+        error: "Could not extract a clear distress signal from the input.",
+      });
+    }
     const { lat, lng } = geocode(extractedData.location_text || text);
 
     const requestDoc = {
@@ -77,6 +92,12 @@ app.post("/extract-voice", async (req, res) => {
       mimeType || "audio/wav",
       language || null,
     );
+    if (isFallbackExtraction(extractedData)) {
+      return res.status(422).json({
+        error:
+          "No clear distress signal detected in the audio. Please re-record with a clearer description.",
+      });
+    }
     const { lat, lng } = geocode(extractedData.location_text || "");
 
     const requestDoc = {

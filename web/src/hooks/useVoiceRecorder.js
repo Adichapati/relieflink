@@ -19,6 +19,7 @@ export function useVoiceRecorder({ maxSeconds = 30 } = {}) {
   const [blob, setBlob] = useState(null);
   const [base64, setBase64] = useState(null);
   const [error, setError] = useState(null);
+  const [silent, setSilent] = useState(false);
 
   const mediaRecorderRef = useRef(null);
   const streamRef = useRef(null);
@@ -28,6 +29,8 @@ export function useVoiceRecorder({ maxSeconds = 30 } = {}) {
   const rafRef = useRef(null);
   const tickRef = useRef(null);
   const startedAtRef = useRef(0);
+  const peakSumRef = useRef(0);
+  const peakCountRef = useRef(0);
 
   const teardown = useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -58,14 +61,20 @@ export function useVoiceRecorder({ maxSeconds = 30 } = {}) {
     setBlob(null);
     setBase64(null);
     setError(null);
+    setSilent(false);
     chunksRef.current = [];
+    peakSumRef.current = 0;
+    peakCountRef.current = 0;
   }, [teardown]);
 
   const start = useCallback(async () => {
     setError(null);
+    setSilent(false);
     setBlob(null);
     setBase64(null);
     chunksRef.current = [];
+    peakSumRef.current = 0;
+    peakCountRef.current = 0;
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -91,6 +100,8 @@ export function useVoiceRecorder({ maxSeconds = 30 } = {}) {
           if (v > peak) peak = v;
         }
         setLevel(peak);
+        peakSumRef.current += peak;
+        peakCountRef.current += 1;
         rafRef.current = requestAnimationFrame(meter);
       };
       rafRef.current = requestAnimationFrame(meter);
@@ -104,6 +115,14 @@ export function useVoiceRecorder({ maxSeconds = 30 } = {}) {
       mr.onstop = async () => {
         try {
           setState('processing');
+          // Silent recording? avg peak is essentially 0. Threshold tuned
+          // empirically — quiet rooms still register ~0.01-0.02.
+          const avgPeak =
+            peakCountRef.current > 0
+              ? peakSumRef.current / peakCountRef.current
+              : 0;
+          const tooQuiet = avgPeak < 0.018;
+
           const recorded = new Blob(chunksRef.current, {
             type: mr.mimeType || 'audio/webm',
           });
@@ -111,7 +130,8 @@ export function useVoiceRecorder({ maxSeconds = 30 } = {}) {
           const b64 = await blobToBase64(wavBlob);
           setBlob(wavBlob);
           setBase64(b64);
-          setState('ready');
+          setSilent(tooQuiet);
+          setState(tooQuiet ? 'silent' : 'ready');
         } catch (err) {
           setError(err.message || 'Failed to process audio');
           setState('error');
@@ -153,7 +173,18 @@ export function useVoiceRecorder({ maxSeconds = 30 } = {}) {
     }
   }, []);
 
-  return { state, level, seconds, error, start, stop, reset, blob, base64 };
+  return {
+    state,
+    level,
+    seconds,
+    error,
+    silent,
+    start,
+    stop,
+    reset,
+    blob,
+    base64,
+  };
 }
 
 /* ── helpers ── */

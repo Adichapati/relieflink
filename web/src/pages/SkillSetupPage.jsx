@@ -1,4 +1,4 @@
-import { useContext, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../App';
 import { geocodeLocation } from '../lib/taskAdapter';
@@ -10,8 +10,21 @@ const SUGGESTED_SKILLS = [
 ];
 
 export default function SkillSetupPage() {
-  const { user, setProfile } = useContext(AuthContext);
+  const { user, profile, setProfile } = useContext(AuthContext);
   const navigate = useNavigate();
+
+  // Defensive: if a returning user (admin or already-set-up volunteer) lands
+  // here for any reason, send them to the dashboard. /setup is the new-user
+  // onboarding only.
+  useEffect(() => {
+    if (
+      profile &&
+      (profile.role === 'ADMIN' ||
+        (Array.isArray(profile.skills) && profile.skills.length > 0))
+    ) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [profile, navigate]);
   const [name, setName] = useState(user?.displayName ?? '');
   const [skills, setSkills] = useState([]);
   const [skillInput, setSkillInput] = useState('');

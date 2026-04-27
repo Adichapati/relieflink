@@ -50,7 +50,7 @@ export default function App() {
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, setProfile }}>
+    <AuthContext.Provider value={{ user, profile, setProfile, loading }}>
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<LandingPage />} />
