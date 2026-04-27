@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import TacticalMap from '../map/TacticalMap';
 import KanbanBoard from '../dashboard/KanbanBoard';
+import AnalyticsView from '../dashboard/AnalyticsView';
 import AnimatedCounter from '../dashboard/AnimatedCounter';
 import { statusToColumn } from '../../lib/taskAdapter';
 
@@ -41,6 +42,7 @@ export default function OperationsSection({
   onDemoMode = null,
   demoStep = 0,
   demoTotal = 5,
+  showAnalytics = false,
 }) {
   const [view, setView] = useState(defaultView);
   const computedStats = useMemo(() => stats || defaultStats(tasks), [stats, tasks]);
@@ -82,6 +84,14 @@ export default function OperationsSection({
           >
             <span className="tab-dot" /> Request Board
           </button>
+          {showAnalytics && (
+            <button
+              className={`ops-tab ${view === 'analytics' ? 'active' : ''}`}
+              onClick={() => setView('analytics')}
+            >
+              <span className="tab-dot" /> Analytics
+            </button>
+          )}
         </div>
 
         <div className="ops-action-group">
@@ -117,9 +127,8 @@ export default function OperationsSection({
       </div>
 
       <div className="ops-content">
-        {view === 'map' ? (
-          <TacticalMap tasks={tasks} />
-        ) : (
+        {view === 'map' && <TacticalMap tasks={tasks} />}
+        {view === 'board' && (
           <KanbanBoard
             tasks={tasks}
             highlightVolunteerId={highlightVolunteerId}
@@ -132,6 +141,9 @@ export default function OperationsSection({
             onDelete={onDelete}
             volunteers={volunteers}
           />
+        )}
+        {view === 'analytics' && showAnalytics && (
+          <AnalyticsView tasks={tasks} volunteers={volunteers} />
         )}
       </div>
     </section>

@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { firestore } from '../firebaseClient';
 import { normalizeTask } from '../lib/taskAdapter';
+import { API_BASE } from '../lib/apiBase';
 import { pushToast } from './useToasts';
 
-const API_BASE = 'http://localhost:8787';
 const POLL_INTERVAL_MS = 3000;
 
 const URGENCY_KIND = {

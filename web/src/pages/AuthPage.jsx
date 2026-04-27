@@ -8,8 +8,7 @@ import {
 } from 'firebase/auth';
 import { auth } from '../firebaseClient';
 import { AuthContext } from '../App';
-
-const API_BASE = 'http://localhost:8787';
+import { API_BASE } from '../lib/apiBase';
 
 export default function AuthPage() {
   const [mode, setMode] = useState('login');

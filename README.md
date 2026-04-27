@@ -165,7 +165,9 @@ relieflink/
 
 ### Environment variables
 
-Create `web/.env`:
+Two sets — see `.env.example` and `web/.env.example` for templates.
+
+**Frontend** (`web/.env.local` for dev, Vercel dashboard for prod):
 
 ```
 VITE_FIREBASE_API_KEY=...
@@ -174,17 +176,20 @@ VITE_FIREBASE_PROJECT_ID=...
 VITE_FIREBASE_STORAGE_BUCKET=...
 VITE_FIREBASE_MESSAGING_SENDER_ID=...
 VITE_FIREBASE_APP_ID=...
+VITE_API_BASE=          # leave blank locally; set to /api on Vercel
 ```
 
-Create `functions/.env`:
+**Backend** (`functions/.env` for dev, Vercel dashboard for prod):
 
 ```
 GEMINI_API_KEY=...
+FIREBASE_SERVICE_ACCOUNT=  # Vercel only — JSON contents of the service account
 ```
 
-Place your Firebase service account key at
+For local dev, place your Firebase service account key at
 `functions/src/serviceAccountKey.json` (download from Firebase Console →
-Project Settings → Service accounts). It is gitignored.
+Project Settings → Service accounts). It is gitignored. On Vercel, paste
+the JSON contents into the `FIREBASE_SERVICE_ACCOUNT` env var instead.
 
 ### Firestore rules
 
@@ -241,6 +246,59 @@ Wipe existing requests and reseed:
 npm --prefix functions run reset
 ```
 
+## Deploying to Vercel
+
+The repo is wired up for a single-platform Vercel deploy: the Vite frontend
+ships as static assets and the Express backend runs as one serverless
+function under `/api/*`.
+
+### Layout
+
+```
+api/[...path].js     ← thin adapter that forwards every /api/* request to
+                       the Express app (strips the /api prefix first)
+functions/src/app.js ← the Express app itself (no listener, exports default)
+functions/src/index.js ← local-dev listener (port 8787)
+vercel.json          ← buildCommand + outputDirectory
+```
+
+### Steps
+
+1. Push the repo to GitHub and import it in Vercel — pick "Other" framework
+   (the included `vercel.json` does the rest).
+2. In **Vercel → Project → Settings → Environment Variables**, add:
+
+   | Name | Value |
+   |---|---|
+   | `GEMINI_API_KEY` | your Gemini key |
+   | `FIREBASE_SERVICE_ACCOUNT` | the **entire contents** of your `serviceAccountKey.json`, pasted as one line |
+   | `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID` | values from the Firebase console |
+   | `VITE_API_BASE` | `/api` |
+
+3. **Add your Vercel domain to Firebase Auth → Authorized Domains**
+   (Firebase Console → Authentication → Settings → Authorized domains).
+   Otherwise Google sign-in will fail in production.
+4. Click **Deploy**. The first build runs `npm run vercel-build`, which
+   installs and builds `web/`. The serverless function is auto-discovered.
+
+### Limits to be aware of
+
+- **Function timeout**: Hobby tier caps at 10 s. A typical Gemini text
+  extraction returns in 1–3 s, but voice extraction can run 6–12 s. If
+  voice intake times out for you, either upgrade to Pro (60 s) and add
+  `"functions": { "api/[...path].js": { "maxDuration": 30 } }` to
+  `vercel.json`, or move just the voice endpoint off Vercel.
+- **Request body size**: Hobby caps at 4.5 MB. A 30-s WAV is ~2.6 MB
+  base64, so you'll fit; longer recordings won't. Express's body limit is
+  already raised to 12 MB in `app.js`.
+- **Cold starts** add ~1 s on the first hit after idle.
+
+### Local dev still works
+
+`functions/src/index.js` keeps the standalone listener on port 8787, and
+`web/src/lib/apiBase.js` defaults to that URL when `VITE_API_BASE` is unset.
+Run `npm --prefix functions run dev` + `npm run dev` exactly as before.
+
 ## Demo flow (3 minutes)
 
 1. **Log in as admin** with the seeded coordinator account. Globe rotating,
@@ -272,8 +330,8 @@ npm --prefix functions run reset
   output via `responseSchema`)
 - **Database / Auth**: Firebase Firestore + Firebase Auth
 - **Maps**: Leaflet with CartoDB dark tiles
-- **Hosting (suggested)**: Firebase Hosting (web) + Cloud Run / Functions
-  (backend)
+- **Hosting**: Vercel (static frontend + Express backend as one serverless
+  function under `/api/*`). See the *Deploying to Vercel* section.
 
 ## Future scope
 

@@ -2,6 +2,7 @@ import { createContext, useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./firebaseClient";
+import { API_BASE } from "./lib/apiBase";
 import LandingPage from "./pages/LandingPage";
 import AuthPage from "./pages/AuthPage";
 import SkillSetupPage from "./pages/SkillSetupPage";
@@ -23,7 +24,7 @@ export default function App() {
       if (currentUser) {
         try {
           const response = await fetch(
-            `http://localhost:8787/user/${currentUser.uid}`,
+            `${API_BASE}/user/${currentUser.uid}`,
           );
           if (response.ok) {
             const profileData = await response.json();

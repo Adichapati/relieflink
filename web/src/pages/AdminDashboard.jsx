@@ -4,6 +4,7 @@ import { useGlobeState } from '../hooks/useGlobeState';
 import { useLiveTasks } from '../hooks/useLiveTasks';
 import { useVolunteers } from '../hooks/useVolunteers';
 import { tasksToGlobePins } from '../lib/taskAdapter';
+import { API_BASE } from '../lib/apiBase';
 import GlobeScene from '../components/globe/GlobeScene';
 import Navbar from '../components/layout/Navbar';
 import ScrollProgress from '../components/ui/ScrollProgress';
@@ -12,8 +13,6 @@ import IntakeSection from '../components/sections/IntakeSection';
 import OperationsSection from '../components/sections/OperationsSection';
 import ImpactSection from '../components/sections/ImpactSection';
 import { pushToast } from '../hooks/useToasts';
-
-const API_BASE = 'http://localhost:8787';
 
 const DEMO_REQUESTS = [
   'URGENT - need food and water at riverside community center in Bangalore. ~200 families displaced by flooding. Children and elderly priority.',
@@ -184,6 +183,7 @@ export default function AdminDashboard({ profile }) {
           autoMatching={autoMatching}
           showAdminActions
           showReviewColumn
+          showAnalytics
           onComplete={handleComplete}
           onReassign={handleReassign}
           onApprove={handleApprove}

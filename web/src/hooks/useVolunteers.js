@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
+import { API_BASE } from '../lib/apiBase';
 
-const API_BASE = 'http://localhost:8787';
 const POLL_MS = 5000;
 
 /**

@@ -5,7 +5,9 @@
       "Bash(rm -f package-lock.json)",
       "Bash(npm install *)",
       "Bash(npm --prefix web run build)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(npm --prefix C:/Users/adith/Documents/Study/Coding/relieflink/web run build)",
+      "Bash(node --input-type=module -e \"import\\('./src/app.js'\\).then\\(m => console.log\\('app exports:', typeof m.default\\)\\).catch\\(e => { console.error\\('FAIL:', e.message\\); process.exit\\(1\\) }\\)\")"
     ]
   }
 }

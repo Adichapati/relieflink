@@ -1,18 +1,31 @@
 import { useState, useCallback } from 'react';
 import FieldReveal from '../ui/FieldReveal';
 import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
+import { API_BASE } from '../../lib/apiBase';
 
 const DEMO_INPUT = `URGENT - need food and water at riverside community center
 in Bangalore. ~200 families displaced by flooding.
 Medical supplies also needed. Contact Priya at 9876543210.
 Children and elderly priority. Roads partially blocked near MG Road.`;
 
-const DEMO_INPUT_MULTILINGUAL = `Necesitamos ayuda urgente en Bangalore.
+const DEMO_INPUT_ES = `Necesitamos ayuda urgente en Bangalore.
 Aproximadamente 30 familias necesitan agua potable y medicinas.
 Hay niños pequeños y dos personas mayores con problemas de salud.
 La calle principal está parcialmente bloqueada.`;
 
-const API_BASE = 'http://localhost:8787';
+const DEMO_INPUT_HI = `बंगलौर में तत्काल मदद चाहिए। लगभग 50 परिवार बेघर हो गए हैं।
+पीने का पानी, खाना और कंबल की जरूरत है। बच्चे और बुजुर्ग प्राथमिकता पर हैं।
+मुख्य सड़क बंद है। कृपया जल्दी पहुँचें।`;
+
+const LANGUAGE_OPTIONS = [
+  { code: 'auto', label: 'Auto', flag: '🌐' },
+  { code: 'en', label: 'English', flag: '🇬🇧' },
+  { code: 'es', label: 'Español', flag: '🇪🇸' },
+  { code: 'hi', label: 'हिन्दी', flag: '🇮🇳' },
+  { code: 'fr', label: 'Français', flag: '🇫🇷' },
+  { code: 'pt', label: 'Português', flag: '🇵🇹' },
+  { code: 'ar', label: 'العربية', flag: '🇸🇦' },
+];
 
 function applyDecoded(data) {
   return {
@@ -25,6 +38,8 @@ function applyDecoded(data) {
         ? `${Math.round(data.confidence * 100)}%`
         : '—',
     status: data.status || 'pending',
+    language: data.language || 'en',
+    description_en: data.description_en || '—',
   };
 }
 
@@ -38,6 +53,7 @@ export default function IntakeSection({
 }) {
   const [mode, setMode] = useState('text');
   const [rawText, setRawText] = useState('');
+  const [language, setLanguage] = useState('auto');
   const [isDecoding, setIsDecoding] = useState(false);
   const [decoded, setDecoded] = useState(null);
   const [error, setError] = useState(null);
@@ -54,7 +70,10 @@ export default function IntakeSection({
       const res = await fetch(`${API_BASE}/extract-request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: rawText }),
+        body: JSON.stringify({
+          text: rawText,
+          language: language === 'auto' ? null : language,
+        }),
       });
 
       if (!res.ok) {
@@ -70,7 +89,7 @@ export default function IntakeSection({
     } finally {
       setIsDecoding(false);
     }
-  }, [rawText, onSubmitted]);
+  }, [rawText, language, onSubmitted]);
 
   const handleDecodeVoice = useCallback(async () => {
     if (!recorder.base64) return;
@@ -85,6 +104,7 @@ export default function IntakeSection({
         body: JSON.stringify({
           audioBase64: recorder.base64,
           mimeType: 'audio/wav',
+          language: language === 'auto' ? null : language,
         }),
       });
       if (!res.ok) {
@@ -99,7 +119,7 @@ export default function IntakeSection({
     } finally {
       setIsDecoding(false);
     }
-  }, [recorder.base64, onSubmitted]);
+  }, [recorder.base64, language, onSubmitted]);
 
   const typeOut = useCallback((text) => {
     setDecoded(null);
@@ -117,14 +137,18 @@ export default function IntakeSection({
     return () => clearInterval(interval);
   }, []);
 
-  const handleLoadDemo = useCallback(
-    () => typeOut(DEMO_INPUT),
-    [typeOut],
-  );
-  const handleLoadMultilingual = useCallback(
-    () => typeOut(DEMO_INPUT_MULTILINGUAL),
-    [typeOut],
-  );
+  const handleLoadDemo = useCallback(() => {
+    setLanguage('auto');
+    typeOut(DEMO_INPUT);
+  }, [typeOut]);
+  const handleLoadES = useCallback(() => {
+    setLanguage('es');
+    typeOut(DEMO_INPUT_ES);
+  }, [typeOut]);
+  const handleLoadHI = useCallback(() => {
+    setLanguage('hi');
+    typeOut(DEMO_INPUT_HI);
+  }, [typeOut]);
 
   const switchMode = (next) => {
     if (next === mode) return;
@@ -173,6 +197,26 @@ export default function IntakeSection({
             <span className="tab-dot" /> Voice
           </button>
         </div>
+
+        <div className="intake-lang-row">
+          <span className="intake-lang-label mono">Language</span>
+          <div className="intake-lang-chips" role="radiogroup" aria-label="Input language">
+            {LANGUAGE_OPTIONS.map((opt) => (
+              <button
+                key={opt.code}
+                type="button"
+                role="radio"
+                aria-checked={language === opt.code}
+                className={`intake-lang-chip ${language === opt.code ? 'active' : ''}`}
+                onClick={() => setLanguage(opt.code)}
+                title={opt.label}
+              >
+                <span className="intake-lang-flag">{opt.flag}</span>
+                <span className="intake-lang-text">{opt.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="intake-grid">
@@ -205,11 +249,20 @@ export default function IntakeSection({
                 <button
                   className="btn-ghost intake-multilingual-btn"
                   type="button"
-                  onClick={handleLoadMultilingual}
+                  onClick={handleLoadES}
                   title="Load a Spanish distress message — Gemini will translate"
                 >
-                  <span className="lang-glyph">🌐</span>
+                  <span className="lang-glyph">🇪🇸</span>
                   Load ES
+                </button>
+                <button
+                  className="btn-ghost intake-multilingual-btn"
+                  type="button"
+                  onClick={handleLoadHI}
+                  title="Load a Hindi distress message — Gemini will translate"
+                >
+                  <span className="lang-glyph">🇮🇳</span>
+                  Load HI
                 </button>
                 <button
                   className="btn-accent"
@@ -314,6 +367,22 @@ export default function IntakeSection({
             <FieldReveal label="Quantity / Details" value={decoded?.people} active={!!decoded} delay={300} />
             <FieldReveal label="Confidence" value={decoded?.confidence} active={!!decoded} delay={400} />
             <FieldReveal label="Status" value={decoded?.status} active={!!decoded} delay={500} />
+            {decoded && decoded.language && decoded.language !== 'en' && (
+              <FieldReveal
+                label="Translated From"
+                value={decoded.language.toUpperCase()}
+                active
+                delay={600}
+              />
+            )}
+            {decoded && decoded.description_en && decoded.language !== 'en' && (
+              <FieldReveal
+                label="English Summary"
+                value={decoded.description_en}
+                active
+                delay={700}
+              />
+            )}
           </div>
         </div>
       </div>

@@ -154,6 +154,9 @@ export function normalizeTask(task) {
       null,
     lat: typeof task.lat === 'number' ? task.lat : null,
     lng: typeof task.lng === 'number' ? task.lng : null,
+    language: task.language || 'en',
+    descriptionEn: task.description_en || task.descriptionEn || null,
+    source: task.source || 'text',
     createdAt: task.created_at || task.createdAt,
     assignedAt: task.assigned_at || task.assignedAt,
     completedAt: task.completed_at || task.completedAt,
@@ -249,6 +252,8 @@ export function taskToCard(task) {
     status: statusToColumn(task.status),
     rawStatus: task.status,
     timestamp: relativeTime(task.createdAt),
+    language: task.language || 'en',
+    descriptionEn: task.descriptionEn || null,
     raw: task,
   };
 }

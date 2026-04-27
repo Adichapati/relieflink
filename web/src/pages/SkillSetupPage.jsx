@@ -2,8 +2,7 @@ import { useContext, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../App';
 import { geocodeLocation } from '../lib/taskAdapter';
-
-const API_BASE = 'http://localhost:8787';
+import { API_BASE } from '../lib/apiBase';
 
 const SUGGESTED_SKILLS = [
   'medical', 'logistics', 'transport', 'food prep',

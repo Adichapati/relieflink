@@ -10,8 +10,7 @@ import IntakeSection from '../components/sections/IntakeSection';
 import OperationsSection from '../components/sections/OperationsSection';
 import RequestCard from '../components/dashboard/RequestCard';
 import { taskToCard, tasksToGlobePins } from '../lib/taskAdapter';
-
-const API_BASE = 'http://localhost:8787';
+import { API_BASE } from '../lib/apiBase';
 
 const VOLUNTEER_VISIBLE_STATUSES = new Set([
   'pending',

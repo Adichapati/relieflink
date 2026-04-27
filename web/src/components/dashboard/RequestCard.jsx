@@ -32,7 +32,10 @@ const RequestCard = memo(function RequestCard({
     rawStatus,
     timestamp,
     status,
+    language,
+    descriptionEn,
   } = request;
+  const isTranslated = language && language !== 'en';
   const urgencyKey = urgency || 'medium';
   const color = URGENCY_COLORS[urgencyKey] || '#888';
   const isHigh = urgencyKey === 'high';
@@ -97,10 +100,22 @@ const RequestCard = memo(function RequestCard({
         {isAwaitingReview && (
           <span className="card-review-badge mono">REVIEW</span>
         )}
+        {isTranslated && (
+          <span
+            className="card-lang-badge mono"
+            title={`Translated from ${language.toUpperCase()}`}
+          >
+            🌐 {language.toUpperCase()}
+          </span>
+        )}
         <span className="card-id mono">#{shortId}</span>
       </div>
 
       <h4 className="card-type">{type}</h4>
+
+      {isTranslated && descriptionEn && (
+        <p className="card-translation-summary">{descriptionEn}</p>
+      )}
 
       <div className="card-details">
         <div className="card-detail">
