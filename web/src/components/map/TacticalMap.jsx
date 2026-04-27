@@ -2,7 +2,11 @@ import { useEffect, useMemo, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { geocodeLocation, urgencyKey } from '../../lib/taskAdapter';
+import {
+  geocodeLocation,
+  urgencyKey,
+  isMapVisibleStatus,
+} from '../../lib/taskAdapter';
 
 function createPinIcon(color) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="36" viewBox="0 0 24 36">
@@ -106,6 +110,8 @@ export default function TacticalMap({ tasks = [] }) {
     let ungeocoded = 0;
 
     for (const t of tasks) {
+      // Pre-approval signals stay in the Review column only
+      if (!isMapVisibleStatus(t.status)) continue;
       const coords = resolveCoords(t);
       if (!coords) { ungeocoded += 1; continue; }
       pins.push({

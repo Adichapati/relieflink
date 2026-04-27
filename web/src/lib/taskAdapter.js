@@ -219,11 +219,26 @@ function continentFromLatLng(lat, lng) {
   return null;
 }
 
+// Statuses that should NEVER appear on the field map / globe.
+// Pre-approval signals live only in the Review column of the kanban —
+// otherwise the map fills up with unverified noise and approval feels
+// invisible because the pin was already there.
+const HIDDEN_FROM_MAP = new Set([
+  'needs_approval',
+  'needs_review',
+  'completed',
+  'resolved',
+]);
+
+export function isMapVisibleStatus(status) {
+  return !HIDDEN_FROM_MAP.has(status);
+}
+
 export function tasksToGlobePins(tasks = []) {
   const pins = [];
   for (const t of tasks) {
     if (typeof t.lat !== 'number' || typeof t.lng !== 'number') continue;
-    if (t.status === 'completed' || t.status === 'resolved') continue;
+    if (!isMapVisibleStatus(t.status)) continue;
     const continent = continentFromLatLng(t.lat, t.lng);
     if (!continent) continue;
     pins.push({
